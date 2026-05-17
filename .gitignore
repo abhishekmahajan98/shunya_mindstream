@@ -1,0 +1,29 @@
+# Dependency dirs
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Build output
+dist/
+build/
+
+# Env files — NEVER commit these
+.env
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Poetry
+poetry.lock
+
+# Vite
+*.local
