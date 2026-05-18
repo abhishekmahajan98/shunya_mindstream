@@ -3,6 +3,7 @@ name = "backend"
 version = "0.1.0"
 description = ""
 authors = ["Abhishek Mahajan <abhishek.mahajan314@gmail.com>"]
+packages = [{include = "main.py"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
