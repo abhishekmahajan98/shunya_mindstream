@@ -5,7 +5,7 @@ import '../services/session_service.dart';
 /// otherwise defaults to local backend.
 const String kApiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://localhost:8000',
+  defaultValue: 'https://shunyamindstream-production.up.railway.app',
 );
 
 Dio createDio() {
