@@ -34,6 +34,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
   bool _isListening = false;
   bool _isLoadingSpeech = false;
   String _liveTranscript = '';
+  String _accumulatedTranscript = '';
+  bool _manuallyStopped = false;
+  bool _recordingSessionActive = false;
   double _soundLevel = 0.0;
 
   // Text Mode Controller
@@ -58,7 +61,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
   }
 
   Future<void> _handleVoiceToggle() async {
-    if (_isListening) {
+    if (_recordingSessionActive) {
       _stopListening();
     } else {
       await _startListening();
@@ -69,6 +72,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
     print("[SpeechToText] Initiating Simulator Mock Speech Synthesis...");
     setState(() {
       _isListening = true;
+      _recordingSessionActive = true;
+      _manuallyStopped = false;
+      _accumulatedTranscript = '';
       _isLoadingSpeech = false;
       _saveStatus = 'idle';
       _saveError = null;
@@ -112,10 +118,13 @@ class _StreamViewState extends ConsumerState<StreamView> {
     print("[SpeechToText] Requesting microphone and speech recognition permissions...");
     setState(() {
       _isLoadingSpeech = true;
+      _recordingSessionActive = true;
       _saveStatus = 'idle';
       _saveError = null;
       _expanded = false;
       _liveTranscript = '';
+      _accumulatedTranscript = '';
+      _manuallyStopped = false;
       _soundLevel = 0.0;
     });
 
@@ -126,6 +135,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
     if (!micPerm.isGranted) {
       setState(() {
         _isLoadingSpeech = false;
+        _recordingSessionActive = false;
         _saveError = 'Microphone permission is required';
       });
       return;
@@ -144,10 +154,19 @@ class _StreamViewState extends ConsumerState<StreamView> {
       onStatus: (val) {
         print("[SpeechToText] onStatus callback: status='$val'");
         if (val == 'notListening') {
-          setState(() {
-            _isListening = false;
-            _timer?.cancel();
-          });
+          if (!_manuallyStopped) {
+            print("[SpeechToText] Auto-cutoff detected. Scheduling restore in 400ms...");
+            Future.delayed(const Duration(milliseconds: 400), () {
+              if (mounted && !_manuallyStopped) {
+                _resumeListening();
+              }
+            });
+          } else {
+            setState(() {
+              _isListening = false;
+              _timer?.cancel();
+            });
+          }
         }
       },
     );
@@ -169,7 +188,12 @@ class _StreamViewState extends ConsumerState<StreamView> {
         onResult: (val) {
           print("[SpeechToText] onResult callback: '${val.recognizedWords}', final=${val.finalResult}");
           setState(() {
-            _liveTranscript = val.recognizedWords;
+            String currentWords = val.recognizedWords;
+            if (_accumulatedTranscript.isNotEmpty) {
+              _liveTranscript = _accumulatedTranscript + (currentWords.isEmpty ? "" : " " + currentWords);
+            } else {
+              _liveTranscript = currentWords;
+            }
           });
         },
         onSoundLevelChange: (level) {
@@ -184,13 +208,55 @@ class _StreamViewState extends ConsumerState<StreamView> {
     } else {
       setState(() {
         _isLoadingSpeech = false;
+        _recordingSessionActive = false;
         _saveError = 'Speech recognition is unavailable on this device/simulator';
       });
     }
   }
 
+  Future<void> _resumeListening() async {
+    if (_manuallyStopped) return;
+    print("[SpeechToText] Resuming active voice capturing session...");
+    
+    // Accumulate the current transcript so it isn't lost on restart
+    if (_liveTranscript.trim().isNotEmpty) {
+      _accumulatedTranscript = _liveTranscript.trim();
+    }
+    
+    try {
+      await _speech.listen(
+        onResult: (val) {
+          print("[SpeechToText] onResult callback (resume): '${val.recognizedWords}', final=${val.finalResult}");
+          setState(() {
+            String currentWords = val.recognizedWords;
+            if (_accumulatedTranscript.isNotEmpty) {
+              _liveTranscript = _accumulatedTranscript + (currentWords.isEmpty ? "" : " " + currentWords);
+            } else {
+              _liveTranscript = currentWords;
+            }
+          });
+        },
+        onSoundLevelChange: (level) {
+          setState(() {
+            double normalized = (level + 2.0) / 10.0;
+            _soundLevel = normalized.clamp(0.0, 1.0);
+          });
+        },
+        listenFor: const Duration(minutes: 10),
+        pauseFor: const Duration(seconds: 10),
+      );
+      setState(() {
+        _isListening = true;
+      });
+    } catch (e) {
+      print("[SpeechToText] Error resuming listener: $e");
+    }
+  }
+
   void _stopListening() {
     print("[SpeechToText] Stopping voice capturing...");
+    _manuallyStopped = true;
+    _recordingSessionActive = false;
     _speech.stop();
     _timer?.cancel();
     _mockSpeechTimer?.cancel();
@@ -266,7 +332,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = _inputMode == 'voice' ? _liveTranscript : _textController.text;
     final hasTranscript = _inputMode == 'voice'
-        ? (!_isListening && _liveTranscript.trim().isNotEmpty)
+        ? (!_recordingSessionActive && _liveTranscript.trim().isNotEmpty)
         : _hasSubmittedText;
 
     return Column(
@@ -395,7 +461,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                 alignment: Alignment.center,
                                 children: [
                                   MindstreamAura(
-                                    isActive: _isListening,
+                                    isActive: _recordingSessionActive,
                                     isLoading: _isLoadingSpeech,
                                     amplitude: _soundLevel,
                                   ),
@@ -411,7 +477,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                             color: isDark ? AppColors.textDark2 : AppColors.textLight2,
                                           ),
                                         )
-                                      else if (_isListening)
+                                      else if (_recordingSessionActive)
                                         Text(
                                           'Tap to stop',
                                           style: GoogleFonts.inter(
