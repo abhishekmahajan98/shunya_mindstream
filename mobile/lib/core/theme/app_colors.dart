@@ -24,9 +24,9 @@ class AppColors {
   static const textLight3 = Color(0xFFB0ABA5);
 
   // ── Accent ──────────────────────────────────────────────────
-  static const teal = Color(0xFF6AADA0);       // Primary — dark mode
-  static const tealDark = Color(0xFF4C8C7F);   // Primary — light mode
-  static const tealGlow = Color(0x266AADA0);   // 15% teal
+  static const teal = Color(0xFFEDAC33);       // Primary — dark mode
+  static const tealDark = Color(0xFFD4941C);   // Primary — light mode
+  static const tealGlow = Color(0x26EDAC33);   // 15% gold
 
   static const violet = Color(0xFF9B8EC4);
   static const violetGlow = Color(0x269B8EC4);

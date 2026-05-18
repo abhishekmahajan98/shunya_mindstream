@@ -125,20 +125,20 @@ class _AuraPainter extends CustomPainter {
       double lineWidth;
 
       if (isActive) {
-        // Meditative teal when recording
+        // Meditative primary gold when recording
         strokeColor = isDark ? AppColors.teal : AppColors.tealDark;
         alpha = isDark
-            ? (0.15 + (1 - ringScale) * 0.18 + amplitude * 0.25)
-            : (0.22 + amplitude * 0.25);
+            ? (0.35 + (1 - ringScale) * 0.25 + amplitude * 0.35)
+            : (0.28 + amplitude * 0.25);
         alpha *= (0.8 + 0.2 * math.sin(t + rIdx));
       } else if (isLoading) {
         strokeColor = isDark ? AppColors.teal : AppColors.tealDark;
-        alpha = (isDark ? 0.15 : 0.22) + 0.05 * math.sin(t * 3);
+        alpha = (isDark ? 0.30 : 0.22) + 0.05 * math.sin(t * 3);
       } else {
         // Warm sand at rest
         strokeColor = isDark ? AppColors.sand : AppColors.sandDark;
         alpha = isDark
-            ? (0.08 + (1 - ringScale) * 0.12)
+            ? (0.18 + (1 - ringScale) * 0.18)
             : (0.18 + (1 - ringScale) * 0.16);
       }
 
@@ -156,22 +156,22 @@ class _AuraPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
-    // Nucleus glow
-    final nucleusR = baseR * 0.22 * (1.0 + amplitude * 0.1);
+    // Soft glowing feathered nucleus (no hard edges, pure premium glassmorphic feel)
+    final nucleusR = baseR * 0.50 * (1.0 + amplitude * 0.15);
     Color nucleusColor;
     double nucleusAlpha;
 
     if (isActive) {
       nucleusColor = isDark ? AppColors.teal : AppColors.tealDark;
       nucleusAlpha = isDark
-          ? (0.08 + amplitude * 0.12)
-          : (0.15 + amplitude * 0.15);
+          ? (0.28 + amplitude * 0.20)
+          : (0.18 + amplitude * 0.15);
     } else if (isLoading) {
       nucleusColor = isDark ? AppColors.teal : AppColors.tealDark;
-      nucleusAlpha = isDark ? 0.05 : 0.08;
+      nucleusAlpha = isDark ? 0.20 : 0.08;
     } else {
       nucleusColor = isDark ? AppColors.sand : AppColors.sandDark;
-      nucleusAlpha = isDark ? 0.04 : 0.08;
+      nucleusAlpha = isDark ? 0.15 : 0.08;
     }
 
     final glowPaint = Paint()
@@ -181,10 +181,10 @@ class _AuraPainter extends CustomPainter {
           nucleusColor.withValues(alpha: 0),
         ],
       ).createShader(
-        Rect.fromCircle(center: Offset(cx, cy), radius: nucleusR * 2.5),
+        Rect.fromCircle(center: Offset(cx, cy), radius: nucleusR * 2.2),
       );
 
-    canvas.drawCircle(Offset(cx, cy), nucleusR * 2.5, glowPaint);
+    canvas.drawCircle(Offset(cx, cy), nucleusR * 2.2, glowPaint);
   }
 
   @override

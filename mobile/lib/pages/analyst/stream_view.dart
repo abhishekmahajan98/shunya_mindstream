@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/api/api_client.dart';
 import '../../core/api/recordings_api.dart';
+import '../../core/api/prompts_api.dart';
 import '../../core/models/prompt.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/mindstream_aura.dart';
@@ -14,11 +15,13 @@ import '../../widgets/stat_chip.dart';
 class StreamView extends ConsumerStatefulWidget {
   final Prompt? selectedPrompt;
   final VoidCallback onClearPrompt;
+  final ValueChanged<Prompt?>? onPromptSelected;
 
   const StreamView({
     super.key,
     required this.selectedPrompt,
     required this.onClearPrompt,
+    this.onPromptSelected,
   });
 
   @override
@@ -42,10 +45,10 @@ class _StreamViewState extends ConsumerState<StreamView> {
   // Text Mode Controller
   final _textController = TextEditingController();
   bool _hasSubmittedText = false;
+  bool _showPromptNudge = true;
 
   // Recording State & Timer
   Timer? _timer;
-  Timer? _mockSpeechTimer;
   int _durationSecs = 0;
   bool _expanded = false;
   bool _saving = false;
@@ -55,8 +58,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
   @override
   void dispose() {
     _timer?.cancel();
-    _mockSpeechTimer?.cancel();
     _textController.dispose();
+    _speech.cancel();
     super.dispose();
   }
 
@@ -68,51 +71,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
     }
   }
 
-  void _startMockListening() {
-    print("[SpeechToText] Initiating Simulator Mock Speech Synthesis...");
-    setState(() {
-      _isListening = true;
-      _recordingSessionActive = true;
-      _manuallyStopped = false;
-      _accumulatedTranscript = '';
-      _isLoadingSpeech = false;
-      _saveStatus = 'idle';
-      _saveError = null;
-      _expanded = false;
-      _liveTranscript = '';
-      _soundLevel = 0.0;
-      _durationSecs = 0;
-    });
 
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() => _durationSecs++);
-    });
-
-    final words = [
-      "We", "are", "seeing", "strong", "secular", "headwinds", "in", 
-      "high-growth", "cloud", "infrastructure,", "suggesting", "a", "near-term", 
-      "defensive", "pivot", "to", "value", "and", "utilities", "due", "to", 
-      "sticky", "inflation", "and", "rising", "capital", "expenditure."
-    ];
-
-    int index = 0;
-    _mockSpeechTimer?.cancel();
-    _mockSpeechTimer = Timer.periodic(const Duration(milliseconds: 380), (timer) {
-      if (index < words.length && _isListening) {
-        setState(() {
-          _liveTranscript += (_liveTranscript.isEmpty ? "" : " ") + words[index];
-          _soundLevel = (index % 2 == 0) ? 0.75 : 0.15;
-          index++;
-        });
-      } else {
-        _mockSpeechTimer?.cancel();
-        setState(() {
-          _soundLevel = 0.0;
-        });
-      }
-    });
-  }
 
   Future<void> _startListening() async {
     print("[SpeechToText] Requesting microphone and speech recognition permissions...");
@@ -145,10 +104,20 @@ class _StreamViewState extends ConsumerState<StreamView> {
     bool available = await _speech.initialize(
       onError: (val) {
         print("[SpeechToText] onError callback: msg='${val.errorMsg}', permanent=${val.permanent}");
+        
+        // Ignore native silence timeouts or no-match errors, as they are handled 
+        // gracefully by our background auto-recovery loop.
+        if (val.errorMsg == 'error_speech_timeout' || 
+            val.errorMsg == 'error_no_match' || 
+            val.errorMsg == 'error_busy' ||
+            val.errorMsg.contains('timeout')) {
+          return;
+        }
+
         setState(() {
           _isListening = false;
           _isLoadingSpeech = false;
-          _saveError = 'Speech error: ${val.errorMsg} (iOS Simulators may require physical device or downloaded Voices)';
+          _saveError = 'Speech error: ${val.errorMsg}';
         });
       },
       onStatus: (val) {
@@ -215,7 +184,11 @@ class _StreamViewState extends ConsumerState<StreamView> {
   }
 
   Future<void> _resumeListening() async {
-    if (_manuallyStopped) return;
+    if (_manuallyStopped || !_recordingSessionActive) return;
+    if (_speech.isListening) {
+      print("[SpeechToText] Speech engine is already actively listening, skipping duplicate resume.");
+      return;
+    }
     print("[SpeechToText] Resuming active voice capturing session...");
     
     // Accumulate the current transcript so it isn't lost on restart
@@ -259,7 +232,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
     _recordingSessionActive = false;
     _speech.stop();
     _timer?.cancel();
-    _mockSpeechTimer?.cancel();
     setState(() {
       _isListening = false;
       _soundLevel = 0.0;
@@ -445,15 +417,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           GestureDetector(
-                            onTap: _isLoadingSpeech
-                                ? null
-                                : () {
-                                    if (_mockSpeechTimer != null && _mockSpeechTimer!.isActive) {
-                                      _stopListening();
-                                    } else {
-                                      _handleVoiceToggle();
-                                    }
-                                  },
+                            onTap: _isLoadingSpeech ? null : _handleVoiceToggle,
                             child: SizedBox(
                               width: 240,
                               height: 240,
@@ -501,16 +465,17 @@ class _StreamViewState extends ConsumerState<StreamView> {
                               ),
                             ),
                           ),
-                          if (_saveError != null && (_saveError!.contains('Speech') || _saveError!.contains('Simulator'))) ...[
+                          if (_saveError != null) ...[
                             const SizedBox(height: 16),
-                            OutlinedButton.icon(
-                              onPressed: _startMockListening,
-                              icon: const Icon(Icons.auto_awesome, color: AppColors.violet, size: 14),
-                              label: const Text('Simulate Voice Input'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.violet,
-                                side: const BorderSide(color: AppColors.violet),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Text(
+                                _saveError!,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  color: AppColors.error,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
@@ -526,54 +491,116 @@ class _StreamViewState extends ConsumerState<StreamView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Minimal Selected Prompt Context Chip
-              if (widget.selectedPrompt != null && !_isListening && !hasTranscript)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6, height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppColors.violet,
-                            shape: BoxShape.circle,
-                          ),
+              // Dynamic Prompts Selection / Selected display
+              if (!hasTranscript) ...[
+                if (widget.selectedPrompt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.15),
                         ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            widget.selectedPrompt!.title,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.psychology_rounded,
+                            color: isDark ? AppColors.teal : AppColors.tealDark,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Prompt: ${widget.selectedPrompt!.title}',
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.textDark : AppColors.textLight,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: widget.onClearPrompt,
-                          child: Icon(
-                            Icons.close,
-                            size: 14,
-                            color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: widget.onClearPrompt,
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 14,
+                              color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (_showPromptNudge && !_recordingSessionActive)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.surfaceDark2.withOpacity(0.8) : AppColors.surfaceLight2.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? AppColors.borderDark : AppColors.borderLight,
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () => _showPromptSelectorBottomSheet(context),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.lightbulb_outline_rounded,
+                                  color: AppColors.violet,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Respond to a PM Prompt',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 14,
+                                  color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() => _showPromptNudge = false),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 14,
+                              color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+              ],
 
               // Live voice recognition interim text
               if (_inputMode == 'voice' && _isListening)
@@ -707,6 +734,190 @@ class _StreamViewState extends ConsumerState<StreamView> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showPromptSelectorBottomSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(isDark ? 0.6 : 0.35),
+      isScrollControlled: true,
+      builder: (context) {
+        return FutureBuilder<List<Prompt>>(
+          future: PromptsApi.list(),
+          builder: (context, snapshot) {
+            Widget body;
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              body = const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            } else if (snapshot.hasError) {
+              body = Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Error: ${snapshot.error}',
+                    style: GoogleFonts.inter(color: AppColors.error),
+                  ),
+                ),
+              );
+            } else {
+              final active = (snapshot.data ?? []).where((p) => p.isActive).toList();
+              if (active.isEmpty) {
+                body = Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: Text(
+                      'No active PM research prompts right now.',
+                      style: GoogleFonts.inter(
+                        color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                      ),
+                    ),
+                  ),
+                );
+              } else {
+                body = ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.6,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: active.length,
+                    itemBuilder: (context, index) {
+                      final p = active[index];
+                      final isSelected = widget.selectedPrompt?.id == p.id;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: InkWell(
+                          onTap: () {
+                            if (widget.onPromptSelected != null) {
+                              widget.onPromptSelected!(isSelected ? null : p);
+                            }
+                            Navigator.pop(context);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected ? activeColor : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        p.title,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                                        ),
+                                      ),
+                                      if (p.description != null && p.description!.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          p.description!,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected) ...[
+                                  const SizedBox(width: 12),
+                                  Icon(Icons.check_circle_rounded, color: activeColor, size: 20),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark.withOpacity(0.96) : AppColors.surfaceLight.withOpacity(0.96),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
+                ),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.only(top: 12, left: 20, right: 20, bottom: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: activeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.psychology_rounded,
+                          color: activeColor,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Select PM Research Prompt',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  body,
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
