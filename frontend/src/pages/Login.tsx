@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Form, Input, Button, Alert, Card } from 'antd';
+import { MailOutlined, LockOutlined } from '@ant-design/icons';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handle = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onFinish = async (values: any) => {
     setLoading(true);
     setError(null);
     try {
-      await login(form.email, form.password);
+      await login(values.email, values.password);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -26,38 +26,64 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="orb orb-1"/><div className="orb orb-2"/>
-      <div className="auth-card">
-        <div className="auth-logo"><span>🌊</span></div>
-        <h1 className="auth-title">Welcome back</h1>
-        <p className="auth-sub">Sign in to Shunya Mindstream</p>
+      <div className="auth-card-wrapper">
+        <Card className="auth-card-antd" bordered={false}>
+          <div className="auth-logo"><span>🌊</span></div>
+          <h1 className="auth-title">Welcome back</h1>
+          <p className="auth-sub">Sign in to Shunya Mindstream</p>
 
-        {error && <div className="error-banner" role="alert">{error}</div>}
-
-        <form onSubmit={handle} className="auth-form">
-          <div className="field-group">
-            <label className="field-label" htmlFor="email">Email</label>
-            <input
-              id="email" type="email" className="field-input" placeholder="you@firm.com"
-              value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              required autoFocus
+          {error && (
+            <Alert
+              message={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: 20 }}
             />
-          </div>
-          <div className="field-group">
-            <label className="field-label" htmlFor="password">Password</label>
-            <input
-              id="password" type="password" className="field-input" placeholder="••••••••"
-              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              required
-            />
-          </div>
-          <button type="submit" className="auth-submit-btn" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
+          )}
 
-        <p className="auth-switch">
-          Don't have an account? <Link to="/signup">Sign up</Link>
-        </p>
+          <Form
+            name="login_form"
+            className="auth-form-antd"
+            onFinish={onFinish}
+            layout="vertical"
+            size="large"
+          >
+            <Form.Item
+              name="email"
+              rules={[
+                { required: true, message: 'Please enter your email' },
+                { type: 'email', message: 'Please enter a valid email' }
+              ]}
+            >
+              <Input 
+                prefix={<MailOutlined className="site-form-item-icon" />} 
+                placeholder="Work Email" 
+                autoComplete="email"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Please enter your password' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="site-form-item-icon" />}
+                placeholder="Password"
+                autoComplete="current-password"
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" className="auth-submit-btn-antd" loading={loading} block>
+                Sign In
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <p className="auth-switch">
+            Don't have an account? <Link to="/signup">Sign up</Link>
+          </p>
+        </Card>
       </div>
     </div>
   );

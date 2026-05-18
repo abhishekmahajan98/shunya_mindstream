@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import AnalystHome from './pages/AnalystHome';
 import PMDashboard from './pages/PMDashboard';
 import PromptResponses from './pages/PromptResponses';
+import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
 
 function RootRedirect() {
@@ -18,23 +19,25 @@ function RootRedirect() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login"  element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="/analyst" element={
-            <ProtectedRoute requiredRole="analyst"><AnalystHome /></ProtectedRoute>
-          }/>
-          <Route path="/pm" element={
-            <ProtectedRoute requiredRole="pm"><PMDashboard /></ProtectedRoute>
-          }/>
-          <Route path="/pm/prompts/:id" element={
-            <ProtectedRoute requiredRole="pm"><PromptResponses /></ProtectedRoute>
-          }/>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login"  element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/analyst" element={
+              <ProtectedRoute requiredRole="analyst"><AnalystHome /></ProtectedRoute>
+            }/>
+            <Route path="/pm" element={
+              <ProtectedRoute requiredRole="pm"><PMDashboard /></ProtectedRoute>
+            }/>
+            <Route path="/pm/prompts/:id" element={
+              <ProtectedRoute requiredRole="pm"><PromptResponses /></ProtectedRoute>
+            }/>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

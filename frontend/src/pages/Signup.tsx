@@ -1,22 +1,30 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Form, Input, Button, Alert, Card, Radio } from 'antd';
+import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 
 export default function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirm: '' });
   const [role, setRole] = useState<'analyst' | 'pm'>('analyst');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.password !== form.confirm) { setError('Passwords do not match.'); return; }
-    if (form.password.length < 8) { setError('Password must be at least 8 characters.'); return; }
-    setLoading(true); setError(null);
+  const onFinish = async (values: any) => {
+    if (values.password !== values.confirm) { 
+      setError('Passwords do not match.'); 
+      return; 
+    }
+    if (values.password.length < 8) { 
+      setError('Password must be at least 8 characters.'); 
+      return; 
+    }
+    
+    setLoading(true); 
+    setError(null);
     try {
-      const auth = await signup(form.email, form.password, form.full_name, role);
+      const auth = await signup(values.email, values.password, values.full_name, role);
       if (!auth.access_token) {
         setError('Check your email to confirm your account before signing in.');
         return;
@@ -32,72 +40,100 @@ export default function Signup() {
   return (
     <div className="auth-page">
       <div className="orb orb-1"/><div className="orb orb-2"/>
-      <div className="auth-card">
-        <div className="auth-logo"><span>🌊</span></div>
-        <h1 className="auth-title">Create account</h1>
-        <p className="auth-sub">Join your team on Shunya Mindstream</p>
+      <div className="auth-card-wrapper">
+        <Card className="auth-card-antd" bordered={false}>
+          <div className="auth-logo"><span>🌊</span></div>
+          <h1 className="auth-title">Create account</h1>
+          <p className="auth-sub">Join your team on Shunya Mindstream</p>
 
-        {/* Role toggle */}
-        <div className="role-toggle">
-          <button
-            type="button"
-            className={`role-toggle-btn ${role === 'analyst' ? 'active' : ''}`}
-            onClick={() => setRole('analyst')}
+          {/* Role selector segmented using Ant Design Radio Buttons */}
+          <div className="role-selector-wrap" style={{ marginBottom: 24, display: 'flex', justifyContent: 'center' }}>
+            <Radio.Group 
+              value={role} 
+              onChange={e => setRole(e.target.value)} 
+              optionType="button" 
+              buttonStyle="solid"
+              size="middle"
+            >
+              <Radio.Button value="analyst" className="role-radio-btn">🎙 Analyst</Radio.Button>
+              <Radio.Button value="pm" className="role-radio-btn">📊 PM</Radio.Button>
+            </Radio.Group>
+          </div>
+
+          {error && (
+            <Alert
+              message={error}
+              type={error.includes('Check your email') ? 'info' : 'error'}
+              showIcon
+              style={{ marginBottom: 20 }}
+            />
+          )}
+
+          <Form
+            name="signup_form"
+            className="auth-form-antd"
+            onFinish={onFinish}
+            layout="vertical"
+            size="large"
           >
-            🎙 Analyst
-          </button>
-          <button
-            type="button"
-            className={`role-toggle-btn ${role === 'pm' ? 'active pm' : ''}`}
-            onClick={() => setRole('pm')}
-          >
-            📊 Portfolio Manager
-          </button>
-        </div>
+            <Form.Item
+              name="full_name"
+              rules={[{ required: true, message: 'Please enter your full name' }]}
+            >
+              <Input 
+                prefix={<UserOutlined className="site-form-item-icon" />} 
+                placeholder="Full Name" 
+                autoComplete="name"
+              />
+            </Form.Item>
 
-        {error && <div className="error-banner" role="alert">{error}</div>}
+            <Form.Item
+              name="email"
+              rules={[
+                { required: true, message: 'Please enter your work email' },
+                { type: 'email', message: 'Please enter a valid email' }
+              ]}
+            >
+              <Input 
+                prefix={<MailOutlined className="site-form-item-icon" />} 
+                placeholder="Work Email" 
+                autoComplete="email"
+              />
+            </Form.Item>
 
-        <form onSubmit={handle} className="auth-form">
-          <div className="field-group">
-            <label className="field-label" htmlFor="full_name">Full Name</label>
-            <input
-              id="full_name" type="text" className="field-input" placeholder="Alex Chen"
-              value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-              required autoFocus
-            />
-          </div>
-          <div className="field-group">
-            <label className="field-label" htmlFor="email">Work Email</label>
-            <input
-              id="email" type="email" className="field-input" placeholder="you@firm.com"
-              value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="field-group">
-            <label className="field-label" htmlFor="password">Password</label>
-            <input
-              id="password" type="password" className="field-input" placeholder="Min 8 characters"
-              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="field-group">
-            <label className="field-label" htmlFor="confirm">Confirm Password</label>
-            <input
-              id="confirm" type="password" className="field-input" placeholder="••••••••"
-              value={form.confirm} onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
-              required
-            />
-          </div>
-          <button type="submit" className="auth-submit-btn" disabled={loading}>
-            {loading ? 'Creating account…' : `Sign up as ${role === 'pm' ? 'Portfolio Manager' : 'Analyst'}`}
-          </button>
-        </form>
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Please enter a password' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="site-form-item-icon" />}
+                placeholder="Password (min 8 chars)"
+                autoComplete="new-password"
+              />
+            </Form.Item>
 
-        <p className="auth-switch">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
+            <Form.Item
+              name="confirm"
+              rules={[{ required: true, message: 'Please confirm your password' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="site-form-item-icon" />}
+                placeholder="Confirm Password"
+                autoComplete="new-password"
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" className="auth-submit-btn-antd" loading={loading} block>
+                Sign up as {role === 'pm' ? 'Portfolio Manager' : 'Analyst'}
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <p className="auth-switch">
+            Already have an account? <Link to="/login">Sign in</Link>
+          </p>
+        </Card>
       </div>
     </div>
   );

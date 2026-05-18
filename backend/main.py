@@ -267,7 +267,7 @@ async def save_recording(body: SaveRecordingRequest, auth: AuthResult = Depends(
 @app.get("/api/recordings")
 async def list_recordings(auth: AuthResult = Depends(get_current_user)):
     udb = get_user_db(auth.token)
-    result = udb.table("recordings").select("*, profiles(full_name)").order("created_at", desc=True).execute()
+    result = udb.table("recordings").select("*, profiles(full_name), prompts(title)").order("created_at", desc=True).execute()
     return result.data or []
 
 

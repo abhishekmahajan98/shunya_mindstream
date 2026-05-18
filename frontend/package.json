@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.2.3",
+    "antd": "^6.4.2",
     "axios": "^1.16.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.49.0",
     "react": "^19.2.5",

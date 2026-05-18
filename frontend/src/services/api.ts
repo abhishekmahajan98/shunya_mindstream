@@ -29,6 +29,7 @@ export interface Recording {
   audio_path: string | null;
   created_at: string;
   profiles?: { full_name: string };
+  prompts?: { title: string } | null;
 }
 
 export interface Prompt {
