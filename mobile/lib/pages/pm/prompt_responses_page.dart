@@ -345,7 +345,7 @@ class _PromptResponsesPageState extends State<PromptResponsesPage> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              '$rDateStr${r.durationSecs != null && r.durationSecs! > 0 ? " · ${r.durationSecs}s" : ""}${r.wordCount != null && r.wordCount! > 0 ? " · ${r.wordCount}w" : ""}',
+                              rDateStr,
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: isDark ? AppColors.textDark3 : AppColors.textLight3,

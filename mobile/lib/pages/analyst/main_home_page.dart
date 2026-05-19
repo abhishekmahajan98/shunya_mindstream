@@ -9,16 +9,18 @@ import 'stream_view.dart';
 import 'archive_view.dart';
 import 'prompts_view.dart';
 import 'drafts_view.dart';
+import '../pm/pm_prompts_view.dart';
+import '../pm/pm_rag_view.dart';
 import '../../core/services/sync_service.dart';
 
-class AnalystHomePage extends ConsumerStatefulWidget {
-  const AnalystHomePage({super.key});
+class MainHomePage extends ConsumerStatefulWidget {
+  const MainHomePage({super.key});
 
   @override
-  ConsumerState<AnalystHomePage> createState() => _AnalystHomePageState();
+  ConsumerState<MainHomePage> createState() => _MainHomePageState();
 }
 
-class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
+class _MainHomePageState extends ConsumerState<MainHomePage> {
   // 'stream' | 'archive' | 'prompts' | 'drafts'
   String _viewMode = 'stream';
   Prompt? _selectedPrompt;
@@ -53,6 +55,10 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
           });
         },
       );
+    } else if (_viewMode == 'pm_prompts') {
+      body = const PMPromptsView();
+    } else if (_viewMode == 'pm_rag') {
+      body = const PMRagView();
     } else {
       body = StreamView(
         selectedPrompt: _selectedPrompt,
@@ -64,27 +70,46 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        leadingWidth: 56,
-        leading: _viewMode != 'stream'
-            ? IconButton(
-                onPressed: () => setState(() => _viewMode = 'stream'),
-                icon: const Icon(Icons.arrow_back_rounded),
-              )
-            : IconButton(
-                onPressed: () => _showAestheticMenu(context),
-                icon: const Icon(Icons.menu_rounded),
-              ),
+    return PopScope(
+      canPop: _viewMode == 'stream',
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          setState(() => _viewMode = 'stream');
+          Future.delayed(const Duration(milliseconds: 50), () {
+            if (mounted) _showAestheticMenu(context);
+          });
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          leadingWidth: 56,
+          leading: _viewMode != 'stream'
+              ? IconButton(
+                  onPressed: () {
+                    setState(() => _viewMode = 'stream');
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      if (mounted) _showAestheticMenu(context);
+                    });
+                  },
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : IconButton(
+                  onPressed: () => _showAestheticMenu(context),
+                  icon: const Icon(Icons.menu_rounded),
+                ),
         title: Text(
           _viewMode == 'archive'
               ? 'Archive'
               : _viewMode == 'prompts'
-                  ? 'Prompts'
+                  ? 'Active Prompts'
                   : _viewMode == 'drafts'
-                      ? 'Drafts'
-                      : 'Mindstream',
+                      ? 'Draft Notes'
+                      : _viewMode == 'pm_prompts'
+                          ? 'Manage Prompts'
+                          : _viewMode == 'pm_rag'
+                              ? 'Search Notes'
+                              : 'Mindstream',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -100,7 +125,7 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
         ],
       ),
       body: body,
-    );
+    ));
   }
 
   void _showAestheticMenu(BuildContext context) {
@@ -188,7 +213,7 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
               _buildMenuItem(
                 context: context,
                 icon: Icons.edit_note_rounded,
-                title: 'Drafts Library',
+                title: 'Draft Notes',
                 subtitle: 'Resume or delete saved drafts',
                 color: isDark ? AppColors.textDark : AppColors.textLight,
                 onTap: () {
@@ -198,10 +223,41 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
               ),
               const SizedBox(height: 12),
               
+              // PM Features injected into the menu
+              if (ref.read(authProvider).profile?.role == 'pm' || ref.read(authProvider).profile?.role == 'manager') ...[
+                const SizedBox(height: 12),
+                Divider(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                const SizedBox(height: 12),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.forum_rounded,
+                  title: 'Manage Prompts',
+                  subtitle: 'Create and toggle analyst prompts',
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _viewMode = 'pm_prompts');
+                  },
+                ),
+                const SizedBox(height: 12),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.search_rounded,
+                  title: 'Search Notes',
+                  subtitle: 'Ask AI about analyst views',
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _viewMode = 'pm_rag');
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+              
               _buildMenuItem(
                 context: context,
                 icon: Icons.lightbulb_outline_rounded,
-                title: 'Prompts Library',
+                title: 'Active Prompts',
                 subtitle: 'Select writing & thinking prompts',
                 color: _selectedPrompt != null ? activeColor : (isDark ? AppColors.textDark : AppColors.textLight),
                 iconColor: _selectedPrompt != null ? activeColor : null,

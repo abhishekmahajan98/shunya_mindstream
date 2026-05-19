@@ -91,22 +91,12 @@ class _PromptsViewState extends State<PromptsView> {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PM Prompts',
-                  style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${_prompts.length} active research prompt${_prompts.length == 1 ? '' : 's'}',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: isDark ? AppColors.textDark2 : AppColors.textLight2,
-                  ),
-                ),
-              ],
+            child: Text(
+              '${_prompts.length} active research prompt${_prompts.length == 1 ? '' : 's'}',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+              ),
             ),
           ),
           Expanded(

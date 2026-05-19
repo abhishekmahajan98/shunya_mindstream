@@ -7,10 +7,10 @@ import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/signup_page.dart';
-import 'pages/analyst/analyst_home_page.dart';
-import 'pages/pm/pm_dashboard_page.dart';
+import 'pages/analyst/main_home_page.dart';
 import 'pages/pm/prompt_responses_page.dart';
 import 'widgets/protected_route.dart';
+import 'widgets/splash_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +61,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(
+        path: '/',
+        builder: (_, __) => const SplashView(),
+      ),
+      GoRoute(
         path: '/login',
         builder: (_, __) => const LoginPage(),
       ),
@@ -72,14 +76,14 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/analyst',
         builder: (_, __) => const ProtectedRoute(
           requiredRole: 'analyst',
-          child: AnalystHomePage(),
+          child: MainHomePage(),
         ),
       ),
       GoRoute(
         path: '/pm',
         builder: (_, __) => const ProtectedRoute(
           requiredRole: 'pm',
-          child: PMDashboardPage(),
+          child: MainHomePage(),
         ),
       ),
       GoRoute(
