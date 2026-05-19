@@ -23,6 +23,7 @@ class MindstreamAura extends StatefulWidget {
 class _MindstreamAuraState extends State<MindstreamAura>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  double _smoothedAmplitude = 0.0;
 
   @override
   void initState() {
@@ -44,16 +45,21 @@ class _MindstreamAuraState extends State<MindstreamAura>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) => CustomPaint(
-        painter: _AuraPainter(
-          t: _ctrl.value * math.pi * 2 * 60 * 0.015, // matches web: frame*0.015
-          amplitude: widget.amplitude,
-          isActive: widget.isActive,
-          isLoading: widget.isLoading,
-          isDark: isDark,
-        ),
-        child: const SizedBox.expand(),
-      ),
+      builder: (_, __) {
+        // Linearly interpolate amplitude for extremely smooth animations (removes microphone jitter)
+        _smoothedAmplitude += (widget.amplitude - _smoothedAmplitude) * 0.15;
+        
+        return CustomPaint(
+          painter: _AuraPainter(
+            t: _ctrl.value * math.pi * 2 * 60 * 0.015, // matches web: frame*0.015
+            amplitude: _smoothedAmplitude,
+            isActive: widget.isActive,
+            isLoading: widget.isLoading,
+            isDark: isDark,
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
     );
   }
 }
@@ -147,11 +153,7 @@ class _AuraPainter extends CustomPainter {
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = lineWidth
-        ..color = strokeColor.withValues(alpha: alpha.clamp(0, 1))
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          isActive ? 6.0 : 2.0,
-        );
+        ..color = strokeColor.withValues(alpha: alpha.clamp(0, 1));
 
       canvas.drawPath(path, paint);
     }

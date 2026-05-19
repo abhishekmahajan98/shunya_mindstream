@@ -8,6 +8,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/recordings_api.dart';
 import '../../core/api/prompts_api.dart';
 import '../../core/models/prompt.dart';
+import '../../core/services/sync_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/mindstream_aura.dart';
 import '../../widgets/stat_chip.dart';
@@ -16,12 +17,18 @@ class StreamView extends ConsumerStatefulWidget {
   final Prompt? selectedPrompt;
   final VoidCallback onClearPrompt;
   final ValueChanged<Prompt?>? onPromptSelected;
+  final Map<String, dynamic>? resumingDraft;
+  final VoidCallback? onDraftResumedProcessed;
+  final VoidCallback? onViewDrafts;
 
   const StreamView({
     super.key,
     required this.selectedPrompt,
     required this.onClearPrompt,
     this.onPromptSelected,
+    this.resumingDraft,
+    this.onDraftResumedProcessed,
+    this.onViewDrafts,
   });
 
   @override
@@ -44,6 +51,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
   // Text Mode Controller
   final _textController = TextEditingController();
+  final _voiceEditController = TextEditingController();
   bool _hasSubmittedText = false;
   bool _showPromptNudge = true;
 
@@ -54,11 +62,77 @@ class _StreamViewState extends ConsumerState<StreamView> {
   bool _saving = false;
   String _saveStatus = 'idle'; // 'idle' | 'saving' | 'done'
   String? _saveError;
+  List<Map<String, dynamic>> _drafts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDrafts();
+    if (widget.resumingDraft != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadDraftFromMap(widget.resumingDraft!);
+        widget.onDraftResumedProcessed?.call();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant StreamView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.resumingDraft != null && widget.resumingDraft != oldWidget.resumingDraft) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadDraftFromMap(widget.resumingDraft!);
+        widget.onDraftResumedProcessed?.call();
+      });
+    }
+  }
+
+  Future<void> _loadDrafts() async {
+    final drafts = await SyncService.getDrafts();
+    if (mounted) {
+      setState(() {
+        _drafts = drafts;
+      });
+    }
+  }
+  void _loadDraftFromMap(Map<String, dynamic> draft) {
+    setState(() {
+      _inputMode = draft['type'] == 'prompted' ? 'voice' : (draft['duration_secs'] > 0 ? 'voice' : 'text');
+      final tr = draft['transcript'] as String? ?? '';
+      
+      if (_inputMode == 'voice') {
+        _liveTranscript = tr;
+        _accumulatedTranscript = tr;
+        _voiceEditController.text = tr;
+        _durationSecs = draft['duration_secs'] as int? ?? 0;
+      } else {
+        _textController.text = tr;
+        _hasSubmittedText = true;
+      }
+
+      if (draft['prompt_id'] != null) {
+        final prompt = Prompt(
+          id: draft['prompt_id'] as String,
+          title: draft['prompt_title'] as String? ?? 'Prompt',
+          status: 'active',
+          createdAt: DateTime.now().toIso8601String(),
+        );
+        widget.onPromptSelected?.call(prompt);
+      } else {
+        widget.onClearPrompt();
+      }
+      
+      _expanded = true;
+      _saveStatus = 'idle';
+      _saveError = null;
+    });
+  }
 
   @override
   void dispose() {
     _timer?.cancel();
     _textController.dispose();
+    _voiceEditController.dispose();
     _speech.cancel();
     super.dispose();
   }
@@ -232,14 +306,18 @@ class _StreamViewState extends ConsumerState<StreamView> {
     _recordingSessionActive = false;
     _speech.stop();
     _timer?.cancel();
+    
+    _voiceEditController.text = _liveTranscript;
+    
     setState(() {
       _isListening = false;
       _soundLevel = 0.0;
+      _expanded = true; // Auto-expand when stopped
     });
   }
 
   Future<void> _handleSave() async {
-    final transcript = _inputMode == 'voice' ? _liveTranscript : _textController.text;
+    final transcript = _inputMode == 'voice' ? _voiceEditController.text : _textController.text;
     if (transcript.trim().isEmpty) return;
 
     setState(() {
@@ -249,8 +327,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
     });
 
     try {
-      // Mindstream web uploads audio, but let's replicate with simple text-only or raw local record mapping.
-      // For mobile native STT we save it directly to Mindstream's recordings table.
       await RecordingsApi.save(
         type: widget.selectedPrompt != null ? 'prompted' : 'freeform',
         promptId: widget.selectedPrompt?.id,
@@ -268,19 +344,112 @@ class _StreamViewState extends ConsumerState<StreamView> {
           setState(() {
             if (_inputMode == 'voice') {
               _liveTranscript = '';
+              _accumulatedTranscript = '';
+              _voiceEditController.clear();
             } else {
               _textController.clear();
               _hasSubmittedText = false;
             }
             _saveStatus = 'idle';
             _expanded = false;
+            _durationSecs = 0;
           });
           widget.onClearPrompt();
         }
       });
     } catch (e) {
+      try {
+        await SyncService.queueRecording({
+          'type': widget.selectedPrompt != null ? 'prompted' : 'freeform',
+          'prompt_id': widget.selectedPrompt?.id,
+          'transcript': transcript.trim(),
+          'duration_secs': _inputMode == 'voice' ? _durationSecs : 0,
+          'word_count': _wordCount(transcript),
+        });
+        setState(() {
+          _saveStatus = 'done';
+          _saveError = 'Waiting for internet... (queued)';
+        });
+        
+        Future.delayed(const Duration(milliseconds: 1800), () {
+          if (mounted) {
+            setState(() {
+              if (_inputMode == 'voice') {
+                _liveTranscript = '';
+                _accumulatedTranscript = '';
+                _voiceEditController.clear();
+              } else {
+                _textController.clear();
+                _hasSubmittedText = false;
+              }
+              _saveStatus = 'idle';
+              _expanded = false;
+              _durationSecs = 0;
+              _saveError = null;
+            });
+            widget.onClearPrompt();
+          }
+        });
+      } catch (syncErr) {
+        setState(() {
+          _saveError = 'Failed to save online and offline.';
+          _saveStatus = 'idle';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _handleSaveDraft() async {
+    final transcript = _inputMode == 'voice' ? _voiceEditController.text : _textController.text;
+    if (transcript.trim().isEmpty) return;
+
+    setState(() {
+      _saving = true;
+      _saveStatus = 'saving';
+      _saveError = null;
+    });
+
+    try {
+      await SyncService.saveDraft({
+        'type': widget.selectedPrompt != null ? 'prompted' : 'freeform',
+        'prompt_id': widget.selectedPrompt?.id,
+        'prompt_title': widget.selectedPrompt?.title,
+        'transcript': transcript.trim(),
+        'duration_secs': _inputMode == 'voice' ? _durationSecs : 0,
+        'word_count': _wordCount(transcript),
+      });
+      
       setState(() {
-        _saveError = extractError(e);
+        _saveStatus = 'done';
+        _saveError = 'Saved as draft';
+      });
+
+      await _loadDrafts();
+
+      Future.delayed(const Duration(milliseconds: 1800), () {
+        if (mounted) {
+          setState(() {
+            if (_inputMode == 'voice') {
+              _liveTranscript = '';
+              _accumulatedTranscript = '';
+              _voiceEditController.clear();
+            } else {
+              _textController.clear();
+              _hasSubmittedText = false;
+            }
+            _saveStatus = 'idle';
+            _expanded = false;
+            _durationSecs = 0;
+            _saveError = null;
+          });
+          widget.onClearPrompt();
+        }
+      });
+    } catch (syncErr) {
+      setState(() {
+        _saveError = 'Failed to save draft.';
         _saveStatus = 'idle';
       });
     } finally {
@@ -310,110 +479,275 @@ class _StreamViewState extends ConsumerState<StreamView> {
     return Column(
       children: [
         // Mode Selector: Voice / Text segment
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ModeButton(
-                  icon: Icons.mic_none_outlined,
-                  isSelected: _inputMode == 'voice',
-                  onTap: () {
-                    setState(() {
-                      _inputMode = 'voice';
-                      _hasSubmittedText = false;
-                    });
-                  },
-                ),
-                _ModeButton(
-                  icon: Icons.edit_note_outlined,
-                  isSelected: _inputMode == 'text',
-                  onTap: () {
-                    setState(() {
-                      _inputMode = 'text';
-                      _hasSubmittedText = false;
-                    });
-                  },
-                ),
-              ],
+        if (!hasTranscript)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ModeButton(
+                    icon: Icons.mic_none_outlined,
+                    isSelected: _inputMode == 'voice',
+                    onTap: () {
+                      setState(() {
+                        _inputMode = 'voice';
+                        _hasSubmittedText = false;
+                      });
+                    },
+                  ),
+                  _ModeButton(
+                    icon: Icons.edit_note_outlined,
+                    isSelected: _inputMode == 'text',
+                    onTap: () {
+                      setState(() {
+                        _inputMode = 'text';
+                        _hasSubmittedText = false;
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
 
         // Main Orb / Write Card capture space
         Expanded(
           child: Center(
-            child: _inputMode == 'text' && !_hasSubmittedText
+            child: hasTranscript
                 ? Padding(
                     padding: const EdgeInsets.all(24.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.surfaceDark.withValues(alpha: 0.65)
-                            : AppColors.surfaceLight.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.edit_note_rounded, size: 24, color: isDark ? AppColors.textDark2 : AppColors.textLight2),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Review & Edit',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.textDark : AppColors.textLight,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.surfaceDark2.withValues(alpha: 0.3) : AppColors.surfaceLight2.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                            ),
                             child: TextField(
-                              controller: _textController,
+                              controller: _inputMode == 'voice' ? _voiceEditController : _textController,
                               maxLines: null,
+                              expands: true,
                               keyboardType: TextInputType.multiline,
+                              textAlignVertical: TextAlignVertical.top,
                               decoration: const InputDecoration(
-                                hintText: 'Write your mindstream down...',
                                 border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.zero,
+                                isDense: true,
                               ),
                               style: GoogleFonts.inter(
+                                fontSize: 15,
                                 height: 1.6,
                                 color: isDark ? AppColors.textDark : AppColors.textLight,
                               ),
                             ),
                           ),
-                          const Divider(),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              ValueListenableBuilder<TextEditingValue>(
-                                valueListenable: _textController,
-                                builder: (_, value, __) {
-                                  return StatChip('${_wordCount(value.text)} words');
-                                },
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  if (_textController.text.trim().isNotEmpty) {
-                                    setState(() => _hasSubmittedText = true);
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        ),
+                        const SizedBox(height: 24),
+                        if (_saveStatus == 'done')
+                          Center(
+                            child: Column(
+                              children: [
+                                const Icon(Icons.check_circle_outline, color: AppColors.success, size: 32),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Saved Successfully',
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
                                 ),
-                                child: const Text('Done Writing'),
-                              )
-                            ],
+                                if (_saveError != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _saveError!,
+                                    style: GoogleFonts.inter(color: AppColors.textDark2, fontSize: 13),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ]
+                              ],
+                            ),
                           )
+                        else ...[
+                          if (_saveError != null) ...[
+                            Text(
+                              _saveError!,
+                              style: GoogleFonts.inter(color: AppColors.error, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (_inputMode == 'voice') ...[
+                            OutlinedButton.icon(
+                              onPressed: _saving ? null : () async {
+                                setState(() {
+                                  _liveTranscript = _voiceEditController.text;
+                                  _recordingSessionActive = true;
+                                  _manuallyStopped = false;
+                                });
+                                await _resumeListening();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                              ),
+                              icon: Icon(Icons.mic_none_outlined, size: 20, color: isDark ? AppColors.textDark : AppColors.textLight),
+                              label: Text('Continue Recording', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? AppColors.textDark : AppColors.textLight)),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          Row(
+                            children: [
+                              OutlinedButton(
+                                onPressed: _saving
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          if (_inputMode == 'voice') {
+                                            _liveTranscript = '';
+                                            _accumulatedTranscript = '';
+                                            _voiceEditController.clear();
+                                            _durationSecs = 0;
+                                          } else {
+                                            _textController.clear();
+                                            _hasSubmittedText = false;
+                                          }
+                                          _saveStatus = 'idle';
+                                        });
+                                      },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                ),
+                                child: Icon(Icons.delete_outline, size: 20, color: isDark ? AppColors.textDark2 : AppColors.textLight2),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _saving ? null : _handleSaveDraft,
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                  ),
+                                  icon: Icon(Icons.save_as_outlined, size: 18, color: isDark ? AppColors.textDark : AppColors.textLight),
+                                  label: Text('Save Draft', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? AppColors.textDark : AppColors.textLight)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _saving ? null : _handleSave,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isDark ? AppColors.textDark : AppColors.textLight,
+                                    foregroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    elevation: 0,
+                                  ),
+                                  icon: _saving
+                                      ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? AppColors.bgDark : AppColors.bgLight))
+                                      : const Icon(Icons.cloud_upload_outlined, size: 18),
+                                  label: Text(_saveStatus == 'saving' ? 'Saving…' : 'Upload', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   )
-                : _inputMode == 'voice' && !hasTranscript
-                    ? Column(
+                : _inputMode == 'text'
+                    ? Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.surfaceDark.withValues(alpha: 0.65)
+                                : AppColors.surfaceLight.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _textController,
+                                  maxLines: null,
+                                  keyboardType: TextInputType.multiline,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Write your mindstream down...',
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    fillColor: Colors.transparent,
+                                  ),
+                                  style: GoogleFonts.inter(
+                                    height: 1.6,
+                                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                                  ),
+                                ),
+                              ),
+                              const Divider(),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: _textController,
+                                    builder: (_, value, __) {
+                                      return StatChip('${_wordCount(value.text)} words');
+                                    },
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      if (_textController.text.trim().isNotEmpty) {
+                                        setState(() => _hasSubmittedText = true);
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                    ),
+                                    child: const Text('Done Writing'),
+                                  )
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      )
+                    : Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           GestureDetector(
@@ -480,8 +814,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             ),
                           ],
                         ],
-                      )
-                    : const SizedBox.shrink(),
+                      ),
           ),
         ),
 
@@ -493,6 +826,48 @@ class _StreamViewState extends ConsumerState<StreamView> {
             children: [
               // Dynamic Prompts Selection / Selected display
               if (!hasTranscript) ...[
+                if (_drafts.isNotEmpty && !_recordingSessionActive)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: GestureDetector(
+                      onTap: widget.onViewDrafts,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark2.withOpacity(0.8) : AppColors.surfaceLight2.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.edit_note_rounded,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${_drafts.length} Unfinished Draft${_drafts.length > 1 ? 's' : ''}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (widget.selectedPrompt != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
@@ -616,118 +991,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           ? AppColors.textDark.withValues(alpha: 0.8)
                           : AppColors.textLight.withValues(alpha: 0.8),
                     ),
-                  ),
-                ),
-
-              // Saved/Finished Transcript Actions Card
-              if (hasTranscript)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.surfaceDark.withValues(alpha: 0.65)
-                        : AppColors.surfaceLight.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          StatChip('${_wordCount(text)}w'),
-                          if (_inputMode == 'voice') ...[
-                            const SizedBox(width: 8),
-                            StatChip(_fmtDuration(_durationSecs)),
-                          ],
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: () => setState(() => _expanded = !_expanded),
-                            icon: Icon(_expanded ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 16),
-                            label: Text(_expanded ? 'Hide text' : 'View text'),
-                          )
-                        ],
-                      ),
-                      if (_expanded) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          constraints: const BoxConstraints(maxHeight: 180),
-                          width: double.infinity,
-                          child: SingleChildScrollView(
-                            child: Text(
-                              text,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                height: 1.6,
-                                color: isDark ? AppColors.textDark2 : AppColors.textLight2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-
-                      if (_saveStatus == 'done')
-                        Center(
-                          child: Text(
-                            'Saved',
-                            style: GoogleFonts.inter(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        )
-                      else ...[
-                        if (_saveError != null) ...[
-                          Text(
-                            _saveError!,
-                            style: GoogleFonts.inter(color: AppColors.error, fontSize: 12),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _saving
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          if (_inputMode == 'voice') {
-                                            _liveTranscript = '';
-                                          } else {
-                                            _textController.clear();
-                                            _hasSubmittedText = false;
-                                          }
-                                          _saveStatus = 'idle';
-                                          _expanded = false;
-                                        });
-                                      },
-                                icon: const Icon(Icons.delete_outline, size: 16),
-                                label: const Text('Discard'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _saving ? null : _handleSave,
-                                icon: _saving
-                                    ? const SizedBox(
-                                        height: 14,
-                                        width: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : const Icon(Icons.save_outlined, size: 16),
-                                label: Text(_saveStatus == 'saving' ? 'Saving…' : 'Save'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
                   ),
                 ),
             ],

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import '../../core/api/recordings_api.dart';
 import '../../core/models/recording.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/archive_recording_card.dart';
+import '../../core/services/sync_service.dart';
 
 class ArchiveView extends StatefulWidget {
   const ArchiveView({super.key});
@@ -21,6 +23,8 @@ class _ArchiveViewState extends State<ArchiveView> {
   // Calendar State
   DateTime _currentMonth = DateTime.now();
   DateTime? _selectedDate;
+  String _viewMode = 'calendar';
+  int _heatmapYear = DateTime.now().year;
 
   @override
   void initState() {
@@ -34,11 +38,29 @@ class _ArchiveViewState extends State<ArchiveView> {
       _error = null;
     });
     try {
+      final pendingRaw = await SyncService.getPendingRecordings();
+      final pendingSync = pendingRaw.map((d) {
+        final localTs = d['local_timestamp'] as String? ?? DateTime.now().toIso8601String();
+        return Recording(
+          id: 'pending_${d['local_timestamp'] ?? DateTime.now().millisecondsSinceEpoch}_${d['transcript'].hashCode}',
+          analystId: '',
+          type: d['type'] as String? ?? 'freeform',
+          promptId: d['prompt_id'] as String?,
+          transcript: d['transcript'] as String? ?? '',
+          durationSecs: d['duration_secs'] as int?,
+          wordCount: d['word_count'] as int?,
+          createdAt: localTs,
+          prompts: d['prompt_id'] != null ? {'title': 'Prompt Response'} : null,
+        );
+      }).toList();
+
       final recs = await RecordingsApi.list();
-      recs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final combined = [...pendingSync, ...recs];
+      combined.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
       if (mounted) {
         setState(() {
-          _allRecordings = recs;
+          _allRecordings = combined;
           _loading = false;
         });
       }
@@ -119,10 +141,47 @@ class _ArchiveViewState extends State<ArchiveView> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: CustomScrollView(
         slivers: [
-          // calendar section card
+          // View Toggle
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 20),
+              padding: const EdgeInsets.only(top: 12, bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: surfaceColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ToggleBtn(
+                          icon: Icons.calendar_month,
+                          label: 'Calendar',
+                          isSelected: _viewMode == 'calendar',
+                          onTap: () => setState(() => _viewMode = 'calendar'),
+                        ),
+                        _ToggleBtn(
+                          icon: Icons.grid_view,
+                          label: 'Heatmap',
+                          isSelected: _viewMode == 'heatmap',
+                          onTap: () => setState(() => _viewMode = 'heatmap'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // View Mode Container (Calendar or Heatmap)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 20),
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -130,8 +189,9 @@ class _ArchiveViewState extends State<ArchiveView> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: border),
                 ),
-                child: Column(
-                  children: [
+                child: _viewMode == 'calendar'
+                    ? Column(
+                        children: [
                     // Calendar header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -140,11 +200,60 @@ class _ArchiveViewState extends State<ArchiveView> {
                           onPressed: _prevMonth,
                           icon: const Icon(Icons.chevron_left),
                         ),
-                        Text(
-                          DateFormat('MMMM yyyy').format(_currentMonth),
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                        GestureDetector(
+                          onTap: () {
+                            DateTime tempDate = _currentMonth;
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (BuildContext builder) {
+                                return Container(
+                                  height: 250,
+                                  color: Theme.of(context).brightness == Brightness.dark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                                  child: SafeArea(
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            CupertinoButton(
+                                              child: const Text('Done'),
+                                              onPressed: () {
+                                                setState(() => _currentMonth = DateTime(tempDate.year, tempDate.month, 1));
+                                                Navigator.of(context).pop();
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        Expanded(
+                                          child: CupertinoDatePicker(
+                                            mode: CupertinoDatePickerMode.monthYear,
+                                            initialDateTime: _currentMonth,
+                                            maximumDate: DateTime.now().add(const Duration(days: 365)),
+                                            onDateTimeChanged: (DateTime newDate) {
+                                              tempDate = newDate;
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                DateFormat('MMMM yyyy').format(_currentMonth),
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_drop_down, size: 20),
+                            ],
                           ),
                         ),
                         IconButton(
@@ -192,8 +301,30 @@ class _ArchiveViewState extends State<ArchiveView> {
                         });
                       },
                     ),
-                  ],
-                ),
+                        ],
+                      )
+                    : _HeatmapGrid(
+                        recordings: _allRecordings,
+                        selectedDate: _selectedDate,
+                        targetYear: _heatmapYear,
+                        onDaySelected: (day) {
+                          setState(() {
+                            if (_selectedDate != null &&
+                                _selectedDate!.year == day.year &&
+                                _selectedDate!.month == day.month &&
+                                _selectedDate!.day == day.day) {
+                              _selectedDate = null;
+                            } else {
+                              _selectedDate = day;
+                            }
+                          });
+                        },
+                        onYearSelected: (year) {
+                          setState(() {
+                            _heatmapYear = year;
+                          });
+                        },
+                      ),
               ),
             ),
           ),
@@ -314,14 +445,17 @@ class _CalendarGrid extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Text(
-                  '$day',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    color: isSelected
-                        ? activeColor
-                        : (isDark ? AppColors.textDark : AppColors.textLight),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Text(
+                    '$day',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected
+                          ? activeColor
+                          : (isDark ? AppColors.textDark : AppColors.textLight),
+                    ),
                   ),
                 ),
                 if (hasRecs)
@@ -348,6 +482,291 @@ class _CalendarGrid extends StatelessWidget {
       runSpacing: 8,
       alignment: WrapAlignment.center,
       children: dayWidgets,
+    );
+  }
+}
+
+class _ToggleBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ToggleBtn({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? activeColor : (isDark ? AppColors.textDark3 : AppColors.textLight3),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? activeColor : (isDark ? AppColors.textDark3 : AppColors.textLight3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeatmapGrid extends StatelessWidget {
+  final List<Recording> recordings;
+  final DateTime? selectedDate;
+  final int targetYear;
+  final ValueChanged<DateTime> onDaySelected;
+  final ValueChanged<int> onYearSelected;
+
+  const _HeatmapGrid({
+    required this.recordings,
+    required this.selectedDate,
+    required this.targetYear,
+    required this.onDaySelected,
+    required this.onYearSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
+
+    // Process counts
+    final counts = <String, int>{};
+    for (final r in recordings) {
+      final dt = DateTime.tryParse(r.createdAt)?.toLocal();
+      if (dt != null) {
+        final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+    }
+
+    // Render target year
+    final startDate = DateTime(targetYear, 1, 1);
+    final today = DateTime.now();
+    final endDate = targetYear == today.year ? today : DateTime(targetYear, 12, 31);
+    
+    // Find first Sunday before or on startDate to align rows perfectly
+    var currentDay = startDate;
+    while (currentDay.weekday != DateTime.sunday) {
+      currentDay = currentDay.subtract(const Duration(days: 1));
+    }
+
+    final List<Widget> columns = [];
+    List<Widget> currentWeek = [];
+
+    // Track month labels
+    final List<Widget> monthLabels = [];
+    int currentMonthTracker = -1;
+    double currentXOffset = 0;
+
+    while (currentDay.isBefore(endDate) || currentDay.isAtSameMomentAs(endDate)) {
+      final date = currentDay;
+
+      // Add month label if it's the first week of the month
+      if (date.month != currentMonthTracker && date.day <= 7) {
+        currentMonthTracker = date.month;
+        monthLabels.add(
+          Positioned(
+            left: currentXOffset,
+            child: Text(
+              DateFormat('MMM').format(date),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+              ),
+            ),
+          ),
+        );
+      }
+
+      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final count = counts[key] ?? 0;
+      
+      final isSelected = selectedDate != null &&
+          selectedDate!.year == date.year &&
+          selectedDate!.month == date.month &&
+          selectedDate!.day == date.day;
+
+      Color squareColor;
+      if (count == 0) {
+        squareColor = isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2;
+      } else if (count <= 2) {
+        squareColor = activeColor.withValues(alpha: 0.3);
+      } else if (count <= 4) {
+        squareColor = activeColor.withValues(alpha: 0.6);
+      } else {
+        squareColor = activeColor;
+      }
+
+      currentWeek.add(
+        GestureDetector(
+          onTap: () => onDaySelected(date),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: squareColor,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (date.weekday == DateTime.saturday) {
+        columns.add(
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Column(children: List.from(currentWeek)),
+          ),
+        );
+        currentWeek.clear();
+        currentXOffset += 18.0; // 14 width + 4 padding
+      }
+
+      currentDay = currentDay.add(const Duration(days: 1));
+    }
+
+    if (currentWeek.isNotEmpty) {
+      columns.add(
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Column(children: currentWeek),
+        ),
+      );
+      currentXOffset += 18.0;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Contribution Heatmap',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                final currentYear = DateTime.now().year;
+                // Generate from current year down to 2024
+                final years = List.generate(currentYear - 2024 + 1, (index) => currentYear - index);
+                int selectedIndex = years.indexOf(targetYear);
+                if (selectedIndex == -1) selectedIndex = 0;
+
+                showModalBottomSheet(
+                  context: context,
+                  builder: (BuildContext builder) {
+                    return Container(
+                      height: 250,
+                      color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                      child: SafeArea(
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                CupertinoButton(
+                                  child: const Text('Done'),
+                                  onPressed: () {
+                                    onYearSelected(years[selectedIndex]);
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            ),
+                            Expanded(
+                              child: CupertinoPicker(
+                                itemExtent: 32.0,
+                                scrollController: FixedExtentScrollController(initialItem: selectedIndex),
+                                onSelectedItemChanged: (int index) {
+                                  selectedIndex = index;
+                                },
+                                children: years.map((y) => Center(child: Text(y.toString()))).toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$targetYear',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: activeColor,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_drop_down, size: 20, color: activeColor),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          reverse: true, // Start scrolled to the rightmost (today)
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 16,
+                width: currentXOffset,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: monthLabels,
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: columns,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -45,6 +45,7 @@ dependencies:
 
   # File paths for audio
   path_provider: ^2.1.4
+  wakelock_plus: ^1.5.2
 
 dev_dependencies:
   flutter_test:

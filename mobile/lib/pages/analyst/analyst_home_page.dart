@@ -8,6 +8,8 @@ import '../../providers/theme_provider.dart';
 import 'stream_view.dart';
 import 'archive_view.dart';
 import 'prompts_view.dart';
+import 'drafts_view.dart';
+import '../../core/services/sync_service.dart';
 
 class AnalystHomePage extends ConsumerStatefulWidget {
   const AnalystHomePage({super.key});
@@ -17,9 +19,16 @@ class AnalystHomePage extends ConsumerStatefulWidget {
 }
 
 class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
-  // 'stream' | 'archive' | 'prompts'
+  // 'stream' | 'archive' | 'prompts' | 'drafts'
   String _viewMode = 'stream';
   Prompt? _selectedPrompt;
+  Map<String, dynamic>? _resumingDraft;
+
+  @override
+  void initState() {
+    super.initState();
+    SyncService.syncPending();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,63 +44,47 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
         onPromptSelected: (p) => setState(() => _selectedPrompt = p),
         onBackToStream: () => setState(() => _viewMode = 'stream'),
       );
+    } else if (_viewMode == 'drafts') {
+      body = DraftsView(
+        onDraftResumed: (draft, index) {
+          setState(() {
+            _resumingDraft = draft;
+            _viewMode = 'stream';
+          });
+        },
+      );
     } else {
       body = StreamView(
         selectedPrompt: _selectedPrompt,
         onClearPrompt: () => setState(() => _selectedPrompt = null),
         onPromptSelected: (p) => setState(() => _selectedPrompt = p),
+        resumingDraft: _resumingDraft,
+        onDraftResumedProcessed: () => setState(() => _resumingDraft = null),
+        onViewDrafts: () => setState(() => _viewMode = 'drafts'),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        leadingWidth: _viewMode == 'stream' ? 92 : 56,
+        leadingWidth: 56,
         leading: _viewMode != 'stream'
             ? IconButton(
                 onPressed: () => setState(() => _viewMode = 'stream'),
                 icon: const Icon(Icons.arrow_back_rounded),
               )
-            : GestureDetector(
-                onTap: () => _showAestheticMenu(context),
-                child: Container(
-                  margin: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.menu_rounded,
-                        size: 16,
-                        color: isDark ? AppColors.textDark : AppColors.textLight,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Menu',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          color: isDark ? AppColors.textDark : AppColors.textLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            : IconButton(
+                onPressed: () => _showAestheticMenu(context),
+                icon: const Icon(Icons.menu_rounded),
               ),
         title: Text(
           _viewMode == 'archive'
               ? 'Archive'
               : _viewMode == 'prompts'
                   ? 'Prompts'
-                  : 'Mindstream',
+                  : _viewMode == 'drafts'
+                      ? 'Drafts'
+                      : 'Mindstream',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -122,7 +115,7 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
       builder: (context) {
         return Container(
           decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark.withOpacity(0.96) : AppColors.surfaceLight.withOpacity(0.96),
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(32),
               topRight: Radius.circular(32),
@@ -159,14 +152,14 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      Icons.bubble_chart_rounded,
+                      Icons.menu_rounded,
                       color: activeColor,
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Navigation',
+                    'Menu',
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -188,6 +181,19 @@ class _AnalystHomePageState extends ConsumerState<AnalystHomePage> {
                 onTap: () {
                   Navigator.pop(context);
                   setState(() => _viewMode = 'archive');
+                },
+              ),
+              const SizedBox(height: 12),
+
+              _buildMenuItem(
+                context: context,
+                icon: Icons.edit_note_rounded,
+                title: 'Drafts Library',
+                subtitle: 'Resume or delete saved drafts',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _viewMode = 'drafts');
                 },
               ),
               const SizedBox(height: 12),

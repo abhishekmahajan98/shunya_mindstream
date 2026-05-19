@@ -1,8 +1,6 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../core/api/recordings_api.dart';
 import '../core/models/recording.dart';
 import '../core/theme/app_colors.dart';
 import 'stat_chip.dart';
@@ -16,37 +14,6 @@ class ArchiveRecordingCard extends StatefulWidget {
 }
 
 class _ArchiveRecordingCardState extends State<ArchiveRecordingCard> {
-  final _player = AudioPlayer();
-  bool _playing = false;
-  String? _audioUrl;
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
-
-  Future<void> _togglePlay() async {
-    if (_playing) {
-      await _player.pause();
-      setState(() => _playing = false);
-      return;
-    }
-    try {
-      _audioUrl ??= await RecordingsApi.getAudioUrl(widget.recording.id);
-      await _player.play(UrlSource(_audioUrl!));
-      setState(() => _playing = true);
-      _player.onPlayerComplete.listen((_) {
-        if (mounted) setState(() => _playing = false);
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playback failed: $e')),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,27 +61,33 @@ class _ArchiveRecordingCardState extends State<ArchiveRecordingCard> {
                       ],
                     ),
                   ),
-                  // Type badge
-                  StatChip(
-                    r.hasAudio ? 'voice' : 'text',
-                    color: r.hasAudio ? AppColors.success : AppColors.teal,
-                  ),
-                  if (r.hasAudio) ...[
-                    const SizedBox(width: 6),
-                    IconButton(
-                      onPressed: _togglePlay,
-                      icon: Icon(
-                        _playing ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                        color: _playing ? AppColors.violet : (isDark ? AppColors.textDark2 : AppColors.textLight2),
-                        size: 26,
+                  if (r.id.startsWith('pending_'))
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.withOpacity(0.4)),
                       ),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_queue_rounded, size: 12, color: Colors.blue),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Waiting for internet',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
 
             // Prompt banner
             if (r.promptTitle != null)

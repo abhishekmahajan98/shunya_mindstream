@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../services/session_service.dart';
 
 /// Base URL — override via FLUTTER_API_URL env var at build time,
@@ -47,6 +48,10 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    debugPrint('🔴 [API ERROR] ${err.requestOptions.method} ${err.requestOptions.uri}');
+    debugPrint('🔴 [STATUS] ${err.response?.statusCode}');
+    debugPrint('🔴 [RESPONSE] ${err.response?.data}');
+    
     if (err.response?.statusCode == 401 && !_isRefreshing) {
       _isRefreshing = true;
       try {
