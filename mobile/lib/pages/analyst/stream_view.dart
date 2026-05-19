@@ -63,6 +63,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
   String _saveStatus = 'idle'; // 'idle' | 'saving' | 'done'
   String? _saveError;
   List<Map<String, dynamic>> _drafts = [];
+  String? _resumingDraftId;
 
   @override
   void initState() {
@@ -97,7 +98,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
   }
   void _loadDraftFromMap(Map<String, dynamic> draft) {
     setState(() {
-      _inputMode = draft['type'] == 'prompted' ? 'voice' : (draft['duration_secs'] > 0 ? 'voice' : 'text');
+      _resumingDraftId = draft['id'] as String?;
+      _inputMode = draft['type'] == 'prompted' ? 'voice' : ((draft['duration_secs'] as int? ?? 0) > 0 ? 'voice' : 'text');
       final tr = draft['transcript'] as String? ?? '';
       
       if (_inputMode == 'voice') {
@@ -344,6 +346,12 @@ class _StreamViewState extends ConsumerState<StreamView> {
         wordCount: _wordCount(transcript),
       );
 
+      if (_resumingDraftId != null) {
+        await SyncService.deleteDraftById(_resumingDraftId!);
+        _resumingDraftId = null;
+        _loadDrafts(); // Refresh drafts list if there is a badge
+      }
+
       setState(() {
         _saveStatus = 'done';
       });
@@ -368,37 +376,71 @@ class _StreamViewState extends ConsumerState<StreamView> {
       });
     } catch (e) {
       try {
-        await SyncService.queueRecording({
+        await SyncService.saveDraft({
+          if (_resumingDraftId != null) 'id': _resumingDraftId,
           'type': widget.selectedPrompt != null ? 'prompted' : 'freeform',
           'prompt_id': widget.selectedPrompt?.id,
+          'prompt_title': widget.selectedPrompt?.title,
           'transcript': transcript.trim(),
           'duration_secs': _inputMode == 'voice' ? _durationSecs : 0,
           'word_count': _wordCount(transcript),
         });
+        
+        await _loadDrafts();
+
         setState(() {
-          _saveStatus = 'done';
-          _saveError = 'Waiting for internet... (queued)';
+          _saveStatus = 'idle';
         });
         
-        Future.delayed(const Duration(milliseconds: 1800), () {
-          if (mounted) {
-            setState(() {
-              if (_inputMode == 'voice') {
-                _liveTranscript = '';
-                _accumulatedTranscript = '';
-                _voiceEditController.clear();
-              } else {
-                _textController.clear();
-                _hasSubmittedText = false;
-              }
-              _saveStatus = 'idle';
-              _expanded = false;
-              _durationSecs = 0;
-              _saveError = null;
-            });
-            widget.onClearPrompt();
-          }
-        });
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) {
+              final isDark = Theme.of(ctx).brightness == Brightness.dark;
+              return AlertDialog(
+                backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                title: Text(
+                'Upload Failed',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                ),
+              ),
+              content: Text(
+                'Your connection may be unstable. Your recording has been safely saved to Draft Notes.',
+                style: GoogleFonts.inter(
+                  color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    if (mounted) {
+                      setState(() {
+                        if (_inputMode == 'voice') {
+                          _liveTranscript = '';
+                          _accumulatedTranscript = '';
+                          _voiceEditController.clear();
+                        } else {
+                          _textController.clear();
+                          _hasSubmittedText = false;
+                        }
+                        _expanded = false;
+                        _durationSecs = 0;
+                        _saveError = null;
+                      });
+                      widget.onClearPrompt();
+                    }
+                  },
+                  child: Text('OK', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.violet)),
+                ),
+              ],
+            );
+          },
+          );
+        }
       } catch (syncErr) {
         setState(() {
           _saveError = 'Failed to save online and offline.';
@@ -422,6 +464,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
     try {
       await SyncService.saveDraft({
+        if (_resumingDraftId != null) 'id': _resumingDraftId,
         'type': widget.selectedPrompt != null ? 'prompted' : 'freeform',
         'prompt_id': widget.selectedPrompt?.id,
         'prompt_title': widget.selectedPrompt?.title,
@@ -588,24 +631,21 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           Center(
                             child: Column(
                               children: [
-                                const Icon(Icons.check_circle_outline, color: AppColors.success, size: 32),
+                                Icon(
+                                  _saveError != null ? Icons.edit_note_rounded : Icons.check_circle_outline,
+                                  color: _saveError != null ? (isDark ? AppColors.teal : AppColors.tealDark) : AppColors.success,
+                                  size: 32,
+                                ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Saved Successfully',
+                                  _saveError ?? 'Saved Successfully',
                                   style: GoogleFonts.inter(
-                                    color: AppColors.success,
+                                    color: _saveError != null ? (isDark ? AppColors.teal : AppColors.tealDark) : AppColors.success,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 16,
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                if (_saveError != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _saveError!,
-                                    style: GoogleFonts.inter(color: AppColors.textDark2, fontSize: 13),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ]
                               ],
                             ),
                           )

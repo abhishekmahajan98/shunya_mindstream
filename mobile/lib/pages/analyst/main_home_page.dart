@@ -64,7 +64,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
           final res = await context.push<Map<String, dynamic>>('/drafts');
           if (res != null) {
             setState(() {
-              _resumingDraft = res;
+              _resumingDraft = res['draft'] as Map<String, dynamic>?;
             });
           }
         },
@@ -165,7 +165,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                   final res = await context.push<Map<String, dynamic>>('/drafts');
                   if (res != null) {
                     setState(() {
-                      _resumingDraft = res;
+                      _resumingDraft = res['draft'] as Map<String, dynamic>?;
                     });
                   }
                 },

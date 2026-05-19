@@ -66,8 +66,20 @@ class SyncService {
     final prefs = await SharedPreferences.getInstance();
     final drafts = prefs.getStringList(_kDraftsKey) ?? [];
     
-    draft['local_timestamp'] = DateTime.now().toIso8601String();
-    drafts.add(jsonEncode(draft));
+    if (draft['id'] == null) {
+      draft['id'] = DateTime.now().millisecondsSinceEpoch.toString();
+      draft['local_timestamp'] = DateTime.now().toIso8601String();
+      drafts.add(jsonEncode(draft));
+    } else {
+      int idx = drafts.indexWhere((s) => (jsonDecode(s) as Map<String, dynamic>)['id'] == draft['id']);
+      if (idx >= 0) {
+        draft['local_timestamp'] = DateTime.now().toIso8601String();
+        drafts[idx] = jsonEncode(draft);
+      } else {
+        draft['local_timestamp'] = DateTime.now().toIso8601String();
+        drafts.add(jsonEncode(draft));
+      }
+    }
     await prefs.setStringList(_kDraftsKey, drafts);
     debugPrint('[SyncService] Saved local draft. Drafts size: ${drafts.length}');
   }
@@ -87,6 +99,23 @@ class SyncService {
       drafts.removeAt(index);
       await prefs.setStringList(_kDraftsKey, drafts);
       debugPrint('[SyncService] Deleted draft at index $index. Remaining drafts: ${drafts.length}');
+    }
+  }
+
+  /// Deletes a draft by its ID
+  static Future<void> deleteDraftById(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final draftsStr = prefs.getStringList(_kDraftsKey) ?? [];
+    final originalLength = draftsStr.length;
+    
+    final newDrafts = draftsStr.where((s) {
+      final map = jsonDecode(s) as Map<String, dynamic>;
+      return map['id'] != id;
+    }).toList();
+
+    if (newDrafts.length < originalLength) {
+      await prefs.setStringList(_kDraftsKey, newDrafts);
+      debugPrint('[SyncService] Deleted draft with ID $id. Remaining drafts: ${newDrafts.length}');
     }
   }
 }
