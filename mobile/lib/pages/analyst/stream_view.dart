@@ -155,8 +155,18 @@ class _StreamViewState extends ConsumerState<StreamView> {
       _saveStatus = 'idle';
       _saveError = null;
       _expanded = false;
-      _liveTranscript = '';
-      _accumulatedTranscript = '';
+      
+      // If we have an existing transcript (e.g. from a draft or a manually stopped session), preserve it.
+      if (_voiceEditController.text.isNotEmpty && _liveTranscript.isEmpty) {
+        _accumulatedTranscript = _voiceEditController.text;
+        _liveTranscript = _accumulatedTranscript;
+      } else if (_liveTranscript.isNotEmpty) {
+        _accumulatedTranscript = _liveTranscript;
+      } else {
+        // Only reset duration if it's a completely fresh recording
+        _durationSecs = 0;
+      }
+      
       _manuallyStopped = false;
       _soundLevel = 0.0;
     });
@@ -220,7 +230,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
       setState(() {
         _isListening = true;
         _isLoadingSpeech = false;
-        _durationSecs = 0;
       });
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() => _durationSecs++);
@@ -462,6 +471,13 @@ class _StreamViewState extends ConsumerState<StreamView> {
     return text.trim().split(RegExp(r'\s+')).length;
   }
 
+  String _getLastWords(String text, {int count = 6}) {
+    if (text.trim().isEmpty) return '';
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.length <= count) return text;
+    return '... ${words.sublist(words.length - count).join(' ')}';
+  }
+
   String _fmtDuration(int s) {
     final minutes = (s / 60).floor().toString().padLeft(2, '0');
     final seconds = (s % 60).toString().padLeft(2, '0');
@@ -605,12 +621,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           if (_inputMode == 'voice') ...[
                             OutlinedButton.icon(
                               onPressed: _saving ? null : () async {
-                                setState(() {
-                                  _liveTranscript = _voiceEditController.text;
-                                  _recordingSessionActive = true;
-                                  _manuallyStopped = false;
-                                });
-                                await _resumeListening();
+                                await _startListening();
                               },
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -982,7 +993,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    _liveTranscript.isEmpty ? 'Listening...' : _liveTranscript,
+                    _liveTranscript.isEmpty ? 'Listening...' : _getLastWords(_liveTranscript),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
                       fontSize: 16,
