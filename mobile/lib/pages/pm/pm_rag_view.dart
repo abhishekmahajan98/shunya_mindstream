@@ -66,7 +66,7 @@ class _PMRagViewState extends State<PMRagView> {
         : AppColors.surfaceLight.withValues(alpha: 0.80);
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    return Padding(
+    Widget content = Padding(
       padding: const EdgeInsets.all(16),
       child: CustomScrollView(
         slivers: [
@@ -215,6 +215,14 @@ class _PMRagViewState extends State<PMRagView> {
           ]
         ],
       ),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Search Notes', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: -0.5)),
+        centerTitle: true,
+      ),
+      body: content,
     );
   }
 }

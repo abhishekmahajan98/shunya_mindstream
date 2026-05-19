@@ -4,16 +4,14 @@ import '../../core/api/prompts_api.dart';
 import '../../core/models/prompt.dart';
 import '../../core/theme/app_colors.dart';
 
+import 'package:go_router/go_router.dart';
+
 class PromptsView extends StatefulWidget {
   final Prompt? selectedPrompt;
-  final ValueChanged<Prompt?> onPromptSelected;
-  final VoidCallback onBackToStream;
 
   const PromptsView({
     super.key,
-    required this.selectedPrompt,
-    required this.onPromptSelected,
-    required this.onBackToStream,
+    this.selectedPrompt,
   });
 
   @override
@@ -64,12 +62,11 @@ class _PromptsViewState extends State<PromptsView> {
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
     final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
 
+    Widget content;
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
+      content = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      content = Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -82,9 +79,8 @@ class _PromptsViewState extends State<PromptsView> {
           ),
         ),
       );
-    }
-
-    return Padding(
+    } else {
+      content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,8 +115,7 @@ class _PromptsViewState extends State<PromptsView> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: GestureDetector(
                           onTap: () {
-                            widget.onPromptSelected(isSelected ? null : p);
-                            widget.onBackToStream();
+                            context.pop({'prompt': isSelected ? null : p});
                           },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -186,6 +181,15 @@ class _PromptsViewState extends State<PromptsView> {
           ),
         ],
       ),
+    );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Active Prompts', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: -0.5)),
+        centerTitle: true,
+      ),
+      body: content,
     );
   }
 }

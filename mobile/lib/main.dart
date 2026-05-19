@@ -9,6 +9,11 @@ import 'pages/auth/login_page.dart';
 import 'pages/auth/signup_page.dart';
 import 'pages/analyst/main_home_page.dart';
 import 'pages/pm/prompt_responses_page.dart';
+import 'pages/analyst/archive_view.dart';
+import 'pages/analyst/drafts_view.dart';
+import 'pages/analyst/prompts_view.dart';
+import 'pages/pm/pm_prompts_view.dart';
+import 'pages/pm/pm_rag_view.dart';
 import 'widgets/protected_route.dart';
 import 'widgets/splash_view.dart';
 
@@ -95,6 +100,35 @@ final _routerProvider = Provider<GoRouter>((ref) {
             child: PromptResponsesPage(promptId: id),
           );
         },
+      ),
+      GoRoute(
+        path: '/archive',
+        builder: (_, __) => const ArchiveView(),
+      ),
+      GoRoute(
+        path: '/drafts',
+        builder: (_, __) => const DraftsView(),
+      ),
+      GoRoute(
+        path: '/prompts',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return PromptsView(selectedPrompt: extra?['selectedPrompt']);
+        },
+      ),
+      GoRoute(
+        path: '/pm/manage-prompts',
+        builder: (_, __) => const ProtectedRoute(
+          requiredRole: 'pm',
+          child: PMPromptsView(),
+        ),
+      ),
+      GoRoute(
+        path: '/pm/search-notes',
+        builder: (_, __) => const ProtectedRoute(
+          requiredRole: 'pm',
+          child: PMRagView(),
+        ),
       ),
     ],
   );

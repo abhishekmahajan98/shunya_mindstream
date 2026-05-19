@@ -4,10 +4,10 @@ import 'package:intl/intl.dart';
 import '../../core/services/sync_service.dart';
 import '../../core/theme/app_colors.dart';
 
-class DraftsView extends StatefulWidget {
-  final Function(Map<String, dynamic> draft, int index) onDraftResumed;
+import 'package:go_router/go_router.dart';
 
-  const DraftsView({super.key, required this.onDraftResumed});
+class DraftsView extends StatefulWidget {
+  const DraftsView({super.key});
 
   @override
   State<DraftsView> createState() => _DraftsViewState();
@@ -43,14 +43,11 @@ class _DraftsViewState extends State<DraftsView> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    Widget content;
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    if (_drafts.isEmpty) {
-      return Center(
+      content = const Center(child: CircularProgressIndicator());
+    } else if (_drafts.isEmpty) {
+      content = Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
@@ -94,10 +91,9 @@ class _DraftsViewState extends State<DraftsView> {
           ),
         ),
       );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+    } else {
+      content = ListView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
       itemCount: _drafts.length,
       itemBuilder: (context, index) {
         final d = _drafts[index];
@@ -221,7 +217,7 @@ class _DraftsViewState extends State<DraftsView> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       ElevatedButton.icon(
-                        onPressed: () => widget.onDraftResumed(d, index),
+                        onPressed: () => context.pop({'draft': d, 'index': index}),
                         icon: const Icon(Icons.edit_note_rounded, size: 16),
                         label: Text(
                           'Resume Draft',
@@ -251,6 +247,15 @@ class _DraftsViewState extends State<DraftsView> {
           ),
         );
       },
+    );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Draft Notes', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: -0.5)),
+        centerTitle: true,
+      ),
+      body: content,
     );
   }
 }

@@ -75,7 +75,7 @@ class _PMPromptsViewState extends State<PMPromptsView> {
     final active = _prompts.where((p) => p.isActive).toList();
     final closed = _prompts.where((p) => !p.isActive).toList();
 
-    return RefreshIndicator(
+    Widget content = RefreshIndicator(
       onRefresh: _fetchPrompts,
       child: _loadingPrompts
           ? const Center(child: CircularProgressIndicator())
@@ -160,6 +160,14 @@ class _PMPromptsViewState extends State<PMPromptsView> {
                 ],
               ],
             ),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Manage Prompts', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: -0.5)),
+        centerTitle: true,
+      ),
+      body: content,
     );
   }
 }

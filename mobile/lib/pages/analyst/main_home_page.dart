@@ -6,12 +6,8 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import 'stream_view.dart';
-import 'archive_view.dart';
-import 'prompts_view.dart';
-import 'drafts_view.dart';
-import '../pm/pm_prompts_view.dart';
-import '../pm/pm_rag_view.dart';
 import '../../core/services/sync_service.dart';
+import 'package:go_router/go_router.dart';
 
 class MainHomePage extends ConsumerStatefulWidget {
   const MainHomePage({super.key});
@@ -21,8 +17,6 @@ class MainHomePage extends ConsumerStatefulWidget {
 }
 
 class _MainHomePageState extends ConsumerState<MainHomePage> {
-  // 'stream' | 'archive' | 'prompts' | 'drafts'
-  String _viewMode = 'stream';
   Prompt? _selectedPrompt;
   Map<String, dynamic>? _resumingDraft;
 
@@ -35,81 +29,17 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
 
-    Widget body;
-    if (_viewMode == 'archive') {
-      body = const ArchiveView();
-    } else if (_viewMode == 'prompts') {
-      body = PromptsView(
-        selectedPrompt: _selectedPrompt,
-        onPromptSelected: (p) => setState(() => _selectedPrompt = p),
-        onBackToStream: () => setState(() => _viewMode = 'stream'),
-      );
-    } else if (_viewMode == 'drafts') {
-      body = DraftsView(
-        onDraftResumed: (draft, index) {
-          setState(() {
-            _resumingDraft = draft;
-            _viewMode = 'stream';
-          });
-        },
-      );
-    } else if (_viewMode == 'pm_prompts') {
-      body = const PMPromptsView();
-    } else if (_viewMode == 'pm_rag') {
-      body = const PMRagView();
-    } else {
-      body = StreamView(
-        selectedPrompt: _selectedPrompt,
-        onClearPrompt: () => setState(() => _selectedPrompt = null),
-        onPromptSelected: (p) => setState(() => _selectedPrompt = p),
-        resumingDraft: _resumingDraft,
-        onDraftResumedProcessed: () => setState(() => _resumingDraft = null),
-        onViewDrafts: () => setState(() => _viewMode = 'drafts'),
-      );
-    }
-
-    return PopScope(
-      canPop: _viewMode == 'stream',
-      onPopInvoked: (didPop) {
-        if (!didPop) {
-          setState(() => _viewMode = 'stream');
-          Future.delayed(const Duration(milliseconds: 50), () {
-            if (mounted) _showAestheticMenu(context);
-          });
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          leadingWidth: 56,
-          leading: _viewMode != 'stream'
-              ? IconButton(
-                  onPressed: () {
-                    setState(() => _viewMode = 'stream');
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      if (mounted) _showAestheticMenu(context);
-                    });
-                  },
-                  icon: const Icon(Icons.arrow_back_rounded),
-                )
-              : IconButton(
-                  onPressed: () => _showAestheticMenu(context),
-                  icon: const Icon(Icons.menu_rounded),
-                ),
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        leadingWidth: 56,
+        leading: IconButton(
+          onPressed: () => _showAestheticMenu(context),
+          icon: const Icon(Icons.menu_rounded),
+        ),
         title: Text(
-          _viewMode == 'archive'
-              ? 'Archive'
-              : _viewMode == 'prompts'
-                  ? 'Active Prompts'
-                  : _viewMode == 'drafts'
-                      ? 'Draft Notes'
-                      : _viewMode == 'pm_prompts'
-                          ? 'Manage Prompts'
-                          : _viewMode == 'pm_rag'
-                              ? 'Search Notes'
-                              : 'Mindstream',
+          'Mindstream',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -124,8 +54,22 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: body,
-    ));
+      body: StreamView(
+        selectedPrompt: _selectedPrompt,
+        onClearPrompt: () => setState(() => _selectedPrompt = null),
+        onPromptSelected: (p) => setState(() => _selectedPrompt = p),
+        resumingDraft: _resumingDraft,
+        onDraftResumedProcessed: () => setState(() => _resumingDraft = null),
+        onViewDrafts: () async {
+          final res = await context.push<Map<String, dynamic>>('/drafts');
+          if (res != null) {
+            setState(() {
+              _resumingDraft = res;
+            });
+          }
+        },
+      ),
+    );
   }
 
   void _showAestheticMenu(BuildContext context) {
@@ -205,7 +149,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 color: isDark ? AppColors.textDark : AppColors.textLight,
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _viewMode = 'archive');
+                  context.push('/archive');
                 },
               ),
               const SizedBox(height: 12),
@@ -216,9 +160,14 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 title: 'Draft Notes',
                 subtitle: 'Resume or delete saved drafts',
                 color: isDark ? AppColors.textDark : AppColors.textLight,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  setState(() => _viewMode = 'drafts');
+                  final res = await context.push<Map<String, dynamic>>('/drafts');
+                  if (res != null) {
+                    setState(() {
+                      _resumingDraft = res;
+                    });
+                  }
                 },
               ),
               const SizedBox(height: 12),
@@ -236,7 +185,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                   color: isDark ? AppColors.textDark : AppColors.textLight,
                   onTap: () {
                     Navigator.pop(context);
-                    setState(() => _viewMode = 'pm_prompts');
+                    context.push('/pm/manage-prompts');
                   },
                 ),
                 const SizedBox(height: 12),
@@ -248,7 +197,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                   color: isDark ? AppColors.textDark : AppColors.textLight,
                   onTap: () {
                     Navigator.pop(context);
-                    setState(() => _viewMode = 'pm_rag');
+                    context.push('/pm/search-notes');
                   },
                 ),
                 const SizedBox(height: 12),
@@ -261,9 +210,14 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 subtitle: 'Select writing & thinking prompts',
                 color: _selectedPrompt != null ? activeColor : (isDark ? AppColors.textDark : AppColors.textLight),
                 iconColor: _selectedPrompt != null ? activeColor : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  setState(() => _viewMode = 'prompts');
+                  final res = await context.push<Map<String, dynamic>>('/prompts', extra: {'selectedPrompt': _selectedPrompt});
+                  if (res != null) {
+                    setState(() {
+                      _selectedPrompt = res['prompt'] as Prompt?;
+                    });
+                  }
                 },
               ),
               

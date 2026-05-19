@@ -115,12 +115,11 @@ class _ArchiveViewState extends State<ArchiveView> {
         : AppColors.surfaceLight.withValues(alpha: 0.80);
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
 
+    Widget content;
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
+      content = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      content = Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -133,15 +132,13 @@ class _ArchiveViewState extends State<ArchiveView> {
           ),
         ),
       );
-    }
-
-    final filtered = _getFilteredRecordings();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: CustomScrollView(
-        slivers: [
-          // View Toggle
+    } else {
+      final filtered = _getFilteredRecordings();
+      content = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: CustomScrollView(
+          slivers: [
+            // View Toggle
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 12),
@@ -383,6 +380,15 @@ class _ArchiveViewState extends State<ArchiveView> {
             ),
         ],
       ),
+    );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Archive', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18, letterSpacing: -0.5)),
+        centerTitle: true,
+      ),
+      body: content,
     );
   }
 }
