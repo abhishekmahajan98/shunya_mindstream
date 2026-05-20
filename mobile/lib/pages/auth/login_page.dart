@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,7 +43,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final teal = isDark ? AppColors.teal : AppColors.tealDark;
+    const teal = Color(0xFFEDAC33); // HIVE Gold Color
 
     return Scaffold(
       backgroundColor: bg,
@@ -60,13 +61,50 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand
+                    // Brand Logo & Heading
                     Center(
                       child: Column(
                         children: [
-                          Text('🌊',
-                              style: const TextStyle(fontSize: 48)),
-                          const SizedBox(height: 12),
+                          Container(
+                            width: 90,
+                            height: 90,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Ambient gold glow backing
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFFEDAC33).withValues(alpha: 0.35),
+                                        blurRadius: 16,
+                                        spreadRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Glassmorphic border hexagon
+                                SizedBox(
+                                  width: 70,
+                                  height: 70,
+                                  child: CustomPaint(
+                                    painter: _LoginHexagonPainter(isDark: isDark),
+                                  ),
+                                ),
+                                // Glowing golden hive (honeycomb) icon
+                                const Icon(
+                                  Icons.hive,
+                                  color: Color(0xFFEDAC33),
+                                  size: 28,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Text('Mindstream',
                               style: GoogleFonts.inter(
                                 fontSize: 28,
@@ -227,4 +265,83 @@ class _Blob extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Private Custom Hexagon Painter for Login Logo ─────────────
+class _LoginHexagonPainter extends CustomPainter {
+  final bool isDark;
+  final double cornerRadius;
+
+  _LoginHexagonPainter({
+    required this.isDark,
+    this.cornerRadius = 10.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = math.min(size.width, size.height) / 2;
+
+    final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3);
+    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+
+    final path = Path();
+    for (int i = 0; i < 6; i++) {
+      final pPrev = vertices[(i - 1 + 6) % 6];
+      final pCurr = vertices[i];
+      final pNext = vertices[(i + 1) % 6];
+
+      final vPrev = pPrev - pCurr;
+      final vNext = pNext - pCurr;
+
+      final dPrev = vPrev.distance;
+      final dNext = vNext.distance;
+
+      final len = math.min(cornerRadius, math.min(dPrev, dNext) / 2);
+
+      final pStart = pCurr + vPrev * (len / dPrev);
+      final pEnd = pCurr + vNext * (len / dNext);
+
+      if (i == 0) {
+        path.moveTo(pStart.dx, pStart.dy);
+      } else {
+        path.lineTo(pStart.dx, pStart.dy);
+      }
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, pEnd.dx, pEnd.dy);
+    }
+    path.close();
+
+    // 1. Draw Gold Shadow
+    final shadowColor = const Color(0xFFEDAC33).withValues(alpha: 0.35);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = shadowColor
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0),
+    );
+
+    // 2. Draw Translucent Fill
+    final fillColor = isDark 
+        ? AppColors.surfaceDark.withValues(alpha: 0.35) 
+        : AppColors.surfaceLight.withValues(alpha: 0.45);
+    canvas.drawPath(
+      path,
+      Paint()..color = fillColor,
+    );
+
+    // 3. Draw Gold Border
+    final borderColor = const Color(0xFFEDAC33).withValues(alpha: 0.8);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = borderColor
+        ..strokeWidth = 1.6,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LoginHexagonPainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
 }
