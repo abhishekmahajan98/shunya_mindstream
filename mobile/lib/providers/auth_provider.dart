@@ -37,6 +37,9 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(const AuthState()) {
     _rehydrate();
+    SessionService.onSessionExpired = () {
+      logout();
+    };
   }
 
   /// Load session from secure storage on app start.

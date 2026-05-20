@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/recordings_api.dart';
 import '../../core/api/prompts_api.dart';
@@ -102,15 +103,12 @@ class _StreamViewState extends ConsumerState<StreamView> {
       _inputMode = draft['type'] == 'prompted' ? 'voice' : ((draft['duration_secs'] as int? ?? 0) > 0 ? 'voice' : 'text');
       final tr = draft['transcript'] as String? ?? '';
       
-      if (_inputMode == 'voice') {
-        _liveTranscript = tr;
-        _accumulatedTranscript = tr;
-        _voiceEditController.text = tr;
-        _durationSecs = draft['duration_secs'] as int? ?? 0;
-      } else {
-        _textController.text = tr;
-        _hasSubmittedText = true;
-      }
+      _liveTranscript = tr;
+      _accumulatedTranscript = tr;
+      _voiceEditController.text = tr;
+      _textController.text = tr;
+      _hasSubmittedText = false;
+      _durationSecs = draft['duration_secs'] as int? ?? 0;
 
       if (draft['prompt_id'] != null) {
         final prompt = Prompt(
@@ -158,14 +156,10 @@ class _StreamViewState extends ConsumerState<StreamView> {
       _saveError = null;
       _expanded = false;
       
-      // If we have an existing transcript (e.g. from a draft or a manually stopped session), preserve it.
-      if (_voiceEditController.text.isNotEmpty && _liveTranscript.isEmpty) {
+      if (_voiceEditController.text.isNotEmpty) {
         _accumulatedTranscript = _voiceEditController.text;
         _liveTranscript = _accumulatedTranscript;
-      } else if (_liveTranscript.isNotEmpty) {
-        _accumulatedTranscript = _liveTranscript;
       } else {
-        // Only reset duration if it's a completely fresh recording
         _durationSecs = 0;
       }
       
@@ -319,6 +313,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
     _timer?.cancel();
     
     _voiceEditController.text = _liveTranscript;
+    _textController.text = _liveTranscript;
     
     setState(() {
       _isListening = false;
@@ -359,14 +354,11 @@ class _StreamViewState extends ConsumerState<StreamView> {
       Future.delayed(const Duration(milliseconds: 1800), () {
         if (mounted) {
           setState(() {
-            if (_inputMode == 'voice') {
-              _liveTranscript = '';
-              _accumulatedTranscript = '';
-              _voiceEditController.clear();
-            } else {
-              _textController.clear();
-              _hasSubmittedText = false;
-            }
+            _liveTranscript = '';
+            _accumulatedTranscript = '';
+            _voiceEditController.clear();
+            _textController.clear();
+            _hasSubmittedText = false;
             _saveStatus = 'idle';
             _expanded = false;
             _durationSecs = 0;
@@ -483,14 +475,11 @@ class _StreamViewState extends ConsumerState<StreamView> {
       Future.delayed(const Duration(milliseconds: 1800), () {
         if (mounted) {
           setState(() {
-            if (_inputMode == 'voice') {
-              _liveTranscript = '';
-              _accumulatedTranscript = '';
-              _voiceEditController.clear();
-            } else {
-              _textController.clear();
-              _hasSubmittedText = false;
-            }
+            _liveTranscript = '';
+            _accumulatedTranscript = '';
+            _voiceEditController.clear();
+            _textController.clear();
+            _hasSubmittedText = false;
             _saveStatus = 'idle';
             _expanded = false;
             _durationSecs = 0;
@@ -538,7 +527,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
     return Column(
       children: [
         // Mode Selector: Voice / Text segment
-        if (!hasTranscript)
+        if (!_recordingSessionActive)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Container(
@@ -555,6 +544,12 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     isSelected: _inputMode == 'voice',
                     onTap: () {
                       setState(() {
+                        if (_inputMode == 'text') {
+                          final currentText = _textController.text;
+                          _liveTranscript = currentText;
+                          _accumulatedTranscript = currentText;
+                          _voiceEditController.text = currentText;
+                        }
                         _inputMode = 'voice';
                         _hasSubmittedText = false;
                       });
@@ -565,6 +560,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     isSelected: _inputMode == 'text',
                     onTap: () {
                       setState(() {
+                        if (_inputMode == 'voice') {
+                          _textController.text = _voiceEditController.text;
+                        }
                         _inputMode = 'text';
                         _hasSubmittedText = false;
                       });
@@ -598,6 +596,99 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             ),
                           ],
                         ),
+                        if (widget.selectedPrompt != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.15),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => _showPromptSelectorBottomSheet(context),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.psychology_rounded,
+                                          color: isDark ? AppColors.teal : AppColors.tealDark,
+                                          size: 12,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Prompt: ${widget.selectedPrompt!.title}',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? AppColors.teal : AppColors.tealDark,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: widget.onClearPrompt,
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 12,
+                                      color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _showPromptSelectorBottomSheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                    style: BorderStyle.solid,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.add_rounded,
+                                      color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Link Prompt',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Expanded(
                           child: Container(
@@ -680,16 +771,14 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                     ? null
                                     : () {
                                         setState(() {
-                                          if (_inputMode == 'voice') {
-                                            _liveTranscript = '';
-                                            _accumulatedTranscript = '';
-                                            _voiceEditController.clear();
-                                            _durationSecs = 0;
-                                          } else {
-                                            _textController.clear();
-                                            _hasSubmittedText = false;
-                                          }
+                                          _liveTranscript = '';
+                                          _accumulatedTranscript = '';
+                                          _voiceEditController.clear();
+                                          _textController.clear();
+                                          _hasSubmittedText = false;
+                                          _durationSecs = 0;
                                           _saveStatus = 'idle';
+                                          _saveError = null;
                                         });
                                       },
                                 style: OutlinedButton.styleFrom(
@@ -770,29 +859,148 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                   ),
                                 ),
                               ),
+                              if (_saveError != null && _saveStatus == 'idle') ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Text(
+                                    _saveError!,
+                                    style: GoogleFonts.inter(color: AppColors.error, fontSize: 12),
+                                  ),
+                                ),
+                              ],
                               const Divider(),
                               const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  ValueListenableBuilder<TextEditingValue>(
-                                    valueListenable: _textController,
-                                    builder: (_, value, __) {
-                                      return StatChip('${_wordCount(value.text)} words');
-                                    },
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      if (_textController.text.trim().isNotEmpty) {
-                                        setState(() => _hasSubmittedText = true);
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                    ),
-                                    child: const Text('Done Writing'),
-                                  )
-                                ],
+                              ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _textController,
+                                builder: (context, value, _) {
+                                  final hasText = value.text.trim().isNotEmpty;
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          StatChip('${_wordCount(value.text)} words'),
+                                          if (hasText && _saveStatus != 'done')
+                                            IconButton(
+                                              onPressed: _saving
+                                                  ? null
+                                                  : () {
+                                                      setState(() {
+                                                        _liveTranscript = '';
+                                                        _accumulatedTranscript = '';
+                                                        _voiceEditController.clear();
+                                                        _textController.clear();
+                                                        _hasSubmittedText = false;
+                                                        _durationSecs = 0;
+                                                        _saveStatus = 'idle';
+                                                        _saveError = null;
+                                                      });
+                                                    },
+                                              icon: Icon(
+                                                Icons.delete_outline,
+                                                color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                                size: 22,
+                                              ),
+                                              tooltip: 'Clear',
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      if (_saveStatus == 'done')
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.success.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: AppColors.success.withOpacity(0.15),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              const Icon(
+                                                Icons.check_circle_outline,
+                                                color: AppColors.success,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _saveError ?? 'Saved Successfully',
+                                                style: GoogleFonts.inter(
+                                                  color: AppColors.success,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton.icon(
+                                                onPressed: (_saving || !hasText) ? null : _handleSaveDraft,
+                                                style: OutlinedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                  side: BorderSide(
+                                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                                  ),
+                                                ),
+                                                icon: Icon(
+                                                  Icons.save_as_outlined,
+                                                  size: 16,
+                                                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                ),
+                                                label: Text(
+                                                  'Save Draft',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: ElevatedButton.icon(
+                                                onPressed: (_saving || !hasText) ? null : _handleSave,
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: isDark ? AppColors.textDark : AppColors.textLight,
+                                                  foregroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                  elevation: 0,
+                                                ),
+                                                icon: _saving
+                                                    ? SizedBox(
+                                                        height: 14,
+                                                        width: 14,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: isDark ? AppColors.bgDark : AppColors.bgLight,
+                                                        ),
+                                                      )
+                                                    : const Icon(Icons.cloud_upload_outlined, size: 16),
+                                                label: Text(
+                                                  _saveStatus == 'saving' ? 'Saving…' : 'Upload',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                    ],
+                                  );
+                                },
                               )
                             ],
                           ),
@@ -934,21 +1142,27 @@ class _StreamViewState extends ConsumerState<StreamView> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.psychology_rounded,
-                            color: isDark ? AppColors.teal : AppColors.tealDark,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'Prompt: ${widget.selectedPrompt!.title}',
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.textDark : AppColors.textLight,
-                              ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _showPromptSelectorBottomSheet(context),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.psychology_rounded,
+                                  color: isDark ? AppColors.teal : AppColors.tealDark,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Prompt: ${widget.selectedPrompt!.title}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 8),

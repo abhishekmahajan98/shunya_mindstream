@@ -1,6 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SessionService {
+  static VoidCallback? onSessionExpired;
+
+  static void notifySessionExpired() {
+    onSessionExpired?.call();
+  }
+
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );

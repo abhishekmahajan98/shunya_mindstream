@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/session_service.dart';
@@ -27,18 +28,64 @@ final dio = createDio();
 // ── Auth interceptor ──────────────────────────────────────────
 class _AuthInterceptor extends Interceptor {
   final Dio _dio;
-  bool _isRefreshing = false;
+  Future<void>? _refreshFuture;
 
   _AuthInterceptor(this._dio);
+
+  Map<String, dynamic> _decodeJwt(String token) {
+    final parts = token.split('.');
+    if (parts.length < 2) return const {};
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final payloadString = utf8.decode(base64Url.decode(normalized));
+      return jsonDecode(payloadString) as Map<String, dynamic>;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  bool _isTokenCloseToExpiry(String token) {
+    try {
+      final payload = _decodeJwt(token);
+      final exp = payload['exp'] as int?;
+      if (exp == null) return false;
+      final expiryDate = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+      // Refresh if token expires in less than 5 minutes
+      return expiryDate.difference(DateTime.now()).inSeconds < 300;
+    } catch (_) {
+      return true; // Treat as close to expiry if parsing fails
+    }
+  }
 
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await SessionService.getAccessToken();
+    String? token = await SessionService.getAccessToken();
     if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
+      if (_isTokenCloseToExpiry(token)) {
+        // Start a shared proactive refresh if none is running
+        if (_refreshFuture == null) {
+          _refreshFuture = _tryRefresh().then((refreshed) async {
+            if (!refreshed) {
+              await SessionService.clearSession();
+              SessionService.notifySessionExpired();
+            }
+          }).catchError((_) async {
+            await SessionService.clearSession();
+            SessionService.notifySessionExpired();
+          }).whenComplete(() {
+            _refreshFuture = null;
+          });
+        }
+        await _refreshFuture;
+        token = await SessionService.getAccessToken();
+      }
+      
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
     }
     handler.next(options);
   }
@@ -52,24 +99,37 @@ class _AuthInterceptor extends Interceptor {
     debugPrint('🔴 [STATUS] ${err.response?.statusCode}');
     debugPrint('🔴 [RESPONSE] ${err.response?.data}');
     
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
-      _isRefreshing = true;
+    final opts = err.requestOptions;
+
+    // Retry once if 401 occurs and has not already been retried
+    if (err.response?.statusCode == 401 && opts.extra['isRetry'] != true) {
+      // Start a shared refresh if none is running
+      if (_refreshFuture == null) {
+        _refreshFuture = _tryRefresh().then((refreshed) async {
+          if (!refreshed) {
+            await SessionService.clearSession();
+            SessionService.notifySessionExpired();
+          }
+        }).catchError((_) async {
+          await SessionService.clearSession();
+          SessionService.notifySessionExpired();
+        }).whenComplete(() {
+          _refreshFuture = null;
+        });
+      }
+
       try {
-        final refreshed = await _tryRefresh();
-        if (refreshed) {
-          // Retry original request with new token
-          final newToken = await SessionService.getAccessToken();
-          final opts = err.requestOptions;
+        await _refreshFuture;
+        final newToken = await SessionService.getAccessToken();
+        if (newToken != null) {
           opts.headers['Authorization'] = 'Bearer $newToken';
+          opts.extra['isRetry'] = true;
           final response = await _dio.fetch(opts);
           handler.resolve(response);
           return;
         }
       } catch (_) {
-        // Refresh failed — clear session
-        await SessionService.clearSession();
-      } finally {
-        _isRefreshing = false;
+        // Fall through to error handler
       }
     }
     handler.next(err);
