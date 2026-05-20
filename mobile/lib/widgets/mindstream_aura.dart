@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../core/theme/app_colors.dart';
 
-/// Animated concentric aura orb — mirrors the web MindstreamAura canvas.
-/// Driven by a looping AnimationController (breathing) + amplitude (voice).
+/// Animated custom visualizer widget. Renders a perfect edge-sharing honeycomb wall
+/// starting directly from the central record button and fading out near the screen boundaries.
 class MindstreamAura extends StatefulWidget {
   final bool isActive;    // recording in progress
   final bool isLoading;   // initialising
@@ -30,7 +29,7 @@ class _MindstreamAuraState extends State<MindstreamAura>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 60), // long loop; painter uses raw value
+      duration: const Duration(seconds: 60), // continuous loop
     )..repeat();
   }
 
@@ -46,12 +45,12 @@ class _MindstreamAuraState extends State<MindstreamAura>
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
-        // Linearly interpolate amplitude for extremely smooth animations (removes microphone jitter)
+        // Linearly interpolate amplitude to smooth out microphone jitter
         _smoothedAmplitude += (widget.amplitude - _smoothedAmplitude) * 0.15;
         
         return CustomPaint(
           painter: _AuraPainter(
-            t: _ctrl.value * math.pi * 2 * 60 * 0.015, // matches web: frame*0.015
+            t: _ctrl.value * math.pi * 2 * 60 * 0.015,
             amplitude: _smoothedAmplitude,
             isActive: widget.isActive,
             isLoading: widget.isLoading,
@@ -80,112 +79,144 @@ class _AuraPainter extends CustomPainter {
     required this.isDark,
   });
 
+  // Helper to generate a straight-edged rounded hexagon path
+  Path getRoundedHexagonPath(double cx, double cy, double r, double rotationAngle, double cornerRadius) {
+    final path = Path();
+    final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3 + rotationAngle);
+    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+
+    for (int i = 0; i < 6; i++) {
+      final pPrev = vertices[(i - 1 + 6) % 6];
+      final pCurr = vertices[i];
+      final pNext = vertices[(i + 1) % 6];
+
+      final vPrev = pPrev - pCurr;
+      final vNext = pNext - pCurr;
+
+      final dPrev = vPrev.distance;
+      final dNext = vNext.distance;
+
+      final len = math.min(cornerRadius, math.min(dPrev, dNext) / 2);
+
+      final pStart = pCurr + vPrev * (len / dPrev);
+      final pEnd = pCurr + vNext * (len / dNext);
+
+      if (i == 0) {
+        path.moveTo(pStart.dx, pStart.dy);
+      } else {
+        path.lineTo(pStart.dx, pStart.dy);
+      }
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, pEnd.dx, pEnd.dy);
+    }
+    path.close();
+    return path;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
 
-    // Breathing scale (~5.5s period)
-    final breatheCycle = isLoading ? t * 2.2 : t * 0.4;
-    final breathe = 1.0 + 0.04 * math.sin(breatheCycle);
-    final maxAllowedR = math.min(size.width, size.height) * 0.32;
-    final baseR = maxAllowedR * breathe;
+    // Beehive Warm Honey/Gold color (#EDAC33)
+    const hiveColor = Color(0xFFEDAC33);
 
-    // Draw 3 concentric organic rings
-    for (int rIdx = 0; rIdx < 3; rIdx++) {
-      final ringPhaseOffset = rIdx * (math.pi * 2 / 3);
-      final ringScale = 0.65 + 0.35 * (rIdx / 2.0);
-      final currentR = baseR * ringScale * (1.0 + amplitude * 0.15);
+    // Grid center-to-center offset sizing (matches record button radius 55)
+    const gridR = 55.0;
+    
+    // Draw sizing: slightly smaller to create clear, aesthetic gaps between cells
+    const drawR = gridR - 4.5; // 50.5 (results in 4px gap to center, 7.8px gap between cells)
+    const drawCornerRadius = 12.85; // Proportional corner radius for drawR
 
-      final path = Path();
-      const numPoints = 120;
+    // Wave propagation timing
+    final wavePhase = isActive ? t * 3.5 : t * 1.0;
 
-      for (int i = 0; i <= numPoints; i++) {
-        final angle = (i / numPoints) * math.pi * 2;
-        final restingWave = 0.015 * math.sin(angle * 4 - t * 0.8 + ringPhaseOffset);
-        final voiceWave = isActive
-            ? (0.02 + amplitude * 0.08) *
-                math.sin(angle * (8 + rIdx * 2) + t * 4.5)
-            : 0.0;
-        final totalRadius = currentR * (1.0 + restingWave + voiceWave);
+    // Axial coordinate loop to tile the screen
+    const range = 4;
+    for (int q = -range; q <= range; q++) {
+      for (int r = -range; r <= range; r++) {
+        if ((q + r).abs() <= range) {
+          // Skip center (q=0, r=0) because the main interactive record button is drawn there
+          if (q == 0 && r == 0) continue;
 
-        final shiftX =
-            math.cos(t * 0.5 + ringPhaseOffset) * 6 * (1.0 - ringScale);
-        final shiftY =
-            math.sin(t * 0.4 + ringPhaseOffset) * 6 * (1.0 - ringScale);
+          // Axial coordinates to pixel offsets translation
+          final dx = gridR * (math.sqrt(3) * q + math.sqrt(3) / 2 * r);
+          final dy = gridR * (1.5 * r);
+          
+          final cellCx = cx + dx;
+          final cellCy = cy + dy;
+          final dist = math.sqrt(dx * dx + dy * dy);
 
-        final x = cx + shiftX + math.cos(angle) * totalRadius;
-        final y = cy + shiftY + math.sin(angle) * totalRadius;
+          // Get grid layer ring distance: Ring 1 (first layer), Ring 2 (second layer), etc.
+          final int ring = (q.abs() + r.abs() + (q + r).abs()) ~/ 2;
+          
+          // Discrete layer-based fade factors matching user request:
+          // Ring 1 (1st layer): bright (100% brightness)
+          // Ring 2 (2nd layer): faded (70% brightness)
+          // Ring 3 (3rd layer): more faded (42% brightness)
+          // Ring 4 (4th layer): deeply faded (18% brightness)
+          double layerFade = 0.0;
+          if (ring == 1) {
+            layerFade = 1.0;
+          } else if (ring == 2) {
+            layerFade = 0.70;
+          } else if (ring == 3) {
+            layerFade = 0.42;
+          } else if (ring == 4) {
+            layerFade = 0.18;
+          }
+          
+          if (layerFade <= 0.0) continue;
 
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
+          // Radial ripple propagation
+          final phase = (dist / 110.0) - wavePhase;
+          final ripple = 0.5 + 0.5 * math.sin(phase);
+
+          // Modulate cell opacity based on active status, voice amplitude, and layer fade
+          final double baseOpacity = isActive ? 0.58 : 0.24;
+          final double rippleWeight = isActive ? (0.42 + amplitude * 0.58) : 0.16;
+          final cellAlpha = (baseOpacity + ripple * rippleWeight) * layerFade;
+
+          final cellPath = getRoundedHexagonPath(cellCx, cellCy, drawR, 0.0, drawCornerRadius);
+
+          // 1. Draw soft translucent honey background fill
+          final fillPaint = Paint()
+            ..style = PaintingStyle.fill
+            ..color = hiveColor.withValues(alpha: (cellAlpha * 0.18).clamp(0.0, 1.0));
+          canvas.drawPath(cellPath, fillPaint);
+
+          // 2. Draw solid outer boundaries (with a gap and increased thickness)
+          final strokePaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4 + (isActive ? amplitude * 1.2 : 0.0)
+            ..color = hiveColor.withValues(alpha: cellAlpha.clamp(0.0, 1.0));
+          canvas.drawPath(cellPath, strokePaint);
+
+          // 3. Draw rotating inner droplet in center of each cell that scales with wave
+          final innerScale = 0.45 + ripple * 0.15 + (isActive ? amplitude * 0.15 : 0.0);
+          final innerR = drawR * innerScale;
+          final innerPath = getRoundedHexagonPath(cellCx, cellCy, innerR, t * 0.15, drawCornerRadius * innerScale);
+          
+          final innerPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0
+            ..color = hiveColor.withValues(alpha: (cellAlpha * 0.65).clamp(0.0, 1.0));
+          canvas.drawPath(innerPath, innerPaint);
         }
       }
-      path.close();
-
-      // Color based on state
-      Color strokeColor;
-      double alpha;
-      double lineWidth;
-
-      if (isActive) {
-        // Meditative primary gold when recording
-        strokeColor = isDark ? AppColors.teal : AppColors.tealDark;
-        alpha = isDark
-            ? (0.35 + (1 - ringScale) * 0.25 + amplitude * 0.35)
-            : (0.28 + amplitude * 0.25);
-        alpha *= (0.8 + 0.2 * math.sin(t + rIdx));
-      } else if (isLoading) {
-        strokeColor = isDark ? AppColors.teal : AppColors.tealDark;
-        alpha = (isDark ? 0.30 : 0.22) + 0.05 * math.sin(t * 3);
-      } else {
-        // Warm sand at rest
-        strokeColor = isDark ? AppColors.sand : AppColors.sandDark;
-        alpha = isDark
-            ? (0.18 + (1 - ringScale) * 0.18)
-            : (0.18 + (1 - ringScale) * 0.16);
-      }
-
-      lineWidth = 1.5 + (1 - ringScale) * 1.5 + amplitude * 1.5;
-
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = lineWidth
-        ..color = strokeColor.withValues(alpha: alpha.clamp(0, 1));
-
-      canvas.drawPath(path, paint);
     }
 
-    // Soft glowing feathered nucleus (no hard edges, pure premium glassmorphic feel)
-    final nucleusR = baseR * 0.50 * (1.0 + amplitude * 0.15);
-    Color nucleusColor;
-    double nucleusAlpha;
-
-    if (isActive) {
-      nucleusColor = isDark ? AppColors.teal : AppColors.tealDark;
-      nucleusAlpha = isDark
-          ? (0.28 + amplitude * 0.20)
-          : (0.18 + amplitude * 0.15);
-    } else if (isLoading) {
-      nucleusColor = isDark ? AppColors.teal : AppColors.tealDark;
-      nucleusAlpha = isDark ? 0.20 : 0.08;
-    } else {
-      nucleusColor = isDark ? AppColors.sand : AppColors.sandDark;
-      nucleusAlpha = isDark ? 0.15 : 0.08;
-    }
-
+    // 4. Background radial glow at the center to highlight record button backing
+    final nucleusR = gridR * 1.5 * (1.0 + (isActive ? amplitude * 0.25 : 0.0));
+    final nucleusAlpha = isActive ? 0.38 + amplitude * 0.32 : 0.18;
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          nucleusColor.withValues(alpha: nucleusAlpha.clamp(0, 1)),
-          nucleusColor.withValues(alpha: 0),
+          hiveColor.withValues(alpha: nucleusAlpha.clamp(0.0, 1.0)),
+          hiveColor.withValues(alpha: 0.0),
         ],
       ).createShader(
         Rect.fromCircle(center: Offset(cx, cy), radius: nucleusR * 2.2),
       );
-
     canvas.drawCircle(Offset(cx, cy), nucleusR * 2.2, glowPaint);
   }
 

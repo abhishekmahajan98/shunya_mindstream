@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -526,6 +528,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
     return Column(
       children: [
+
         // Mode Selector: Voice / Text segment
         if (!_recordingSessionActive)
           Padding(
@@ -1012,8 +1015,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           GestureDetector(
                             onTap: _isLoadingSpeech ? null : _handleVoiceToggle,
                             child: SizedBox(
-                              width: 240,
-                              height: 240,
+                              width: 280,
+                              height: 280,
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
@@ -1022,37 +1025,84 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                     isLoading: _isLoadingSpeech,
                                     amplitude: _soundLevel,
                                   ),
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      if (_isLoadingSpeech)
-                                        Text(
-                                          'Starting…',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                  // Central Glassmorphic Hexagon Button (Hive theme)
+                                  SizedBox(
+                                    width: 110,
+                                    height: 110,
+                                    child: Stack(
+                                      children: [
+                                        CustomPaint(
+                                          painter: HexagonPainter(
+                                            isActive: _recordingSessionActive,
+                                            isLoading: _isLoadingSpeech,
+                                            isDark: isDark,
+                                            cornerRadius: 14,
                                           ),
-                                        )
-                                      else if (_recordingSessionActive)
-                                        Text(
-                                          'Tap to stop',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                          child: const SizedBox.expand(),
+                                        ),
+                                        ClipPath(
+                                          clipper: HexagonClipper(cornerRadius: 14),
+                                          child: BackdropFilter(
+                                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  if (_isLoadingSpeech)
+                                                    SizedBox(
+                                                      width: 24,
+                                                      height: 24,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2.5,
+                                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                                          isDark ? AppColors.teal : AppColors.tealDark,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  else if (_recordingSessionActive)
+                                                    // Red recording dot / square
+                                                    Container(
+                                                      width: 22,
+                                                      height: 22,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.redAccent,
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.redAccent.withOpacity(0.4),
+                                                            blurRadius: 8,
+                                                            spreadRadius: 1,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    )
+                                                  else
+                                                    Icon(
+                                                      Icons.mic_none_rounded,
+                                                      size: 28,
+                                                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                    ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    _isLoadingSpeech
+                                                        ? 'Starting…'
+                                                        : _recordingSessionActive
+                                                            ? 'Stop'
+                                                            : 'Record',
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      letterSpacing: 0.5,
+                                                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
-                                        )
-                                      else
-                                        Text(
-                                          'Tap to speak',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
-                                          ),
-                                        )
-                                    ],
+                                        ),
+                                      ],
+                                    ),
                                   )
                                 ],
                               ),
@@ -1486,4 +1536,140 @@ class _ModeButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class HexagonClipper extends CustomClipper<Path> {
+  final double cornerRadius;
+
+  HexagonClipper({this.cornerRadius = 14.0});
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = math.min(size.width, size.height) / 2;
+
+    final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3);
+    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+
+    for (int i = 0; i < 6; i++) {
+      final pPrev = vertices[(i - 1 + 6) % 6];
+      final pCurr = vertices[i];
+      final pNext = vertices[(i + 1) % 6];
+
+      final vPrev = pPrev - pCurr;
+      final vNext = pNext - pCurr;
+
+      final dPrev = vPrev.distance;
+      final dNext = vNext.distance;
+
+      final len = math.min(cornerRadius, math.min(dPrev, dNext) / 2);
+
+      final pStart = pCurr + vPrev * (len / dPrev);
+      final pEnd = pCurr + vNext * (len / dNext);
+
+      if (i == 0) {
+        path.moveTo(pStart.dx, pStart.dy);
+      } else {
+        path.lineTo(pStart.dx, pStart.dy);
+      }
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, pEnd.dx, pEnd.dy);
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class HexagonPainter extends CustomPainter {
+  final bool isActive;
+  final bool isLoading;
+  final bool isDark;
+  final double cornerRadius;
+
+  HexagonPainter({
+    required this.isActive,
+    required this.isLoading,
+    required this.isDark,
+    this.cornerRadius = 14.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = math.min(size.width, size.height) / 2;
+
+    final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3);
+    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+
+    final path = Path();
+    for (int i = 0; i < 6; i++) {
+      final pPrev = vertices[(i - 1 + 6) % 6];
+      final pCurr = vertices[i];
+      final pNext = vertices[(i + 1) % 6];
+
+      final vPrev = pPrev - pCurr;
+      final vNext = pNext - pCurr;
+
+      final dPrev = vPrev.distance;
+      final dNext = vNext.distance;
+
+      final len = math.min(cornerRadius, math.min(dPrev, dNext) / 2);
+
+      final pStart = pCurr + vPrev * (len / dPrev);
+      final pEnd = pCurr + vNext * (len / dNext);
+
+      if (i == 0) {
+        path.moveTo(pStart.dx, pStart.dy);
+      } else {
+        path.lineTo(pStart.dx, pStart.dy);
+      }
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, pEnd.dx, pEnd.dy);
+    }
+    path.close();
+
+    // 1. Draw Shadow
+    final shadowColor = isActive
+        ? const Color(0xFFEDAC33).withOpacity(0.70)
+        : (isDark ? AppColors.sand : AppColors.sandDark).withOpacity(isDark ? 0.30 : 0.20);
+        
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = shadowColor
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16.0),
+    );
+
+    // 2. Draw Fill
+    final fillColor = isDark 
+        ? AppColors.surfaceDark.withOpacity(0.35) 
+        : AppColors.surfaceLight.withOpacity(0.45);
+    canvas.drawPath(
+      path,
+      Paint()..color = fillColor,
+    );
+
+    // 3. Draw Border
+    final borderColor = isActive
+        ? const Color(0xFFEDAC33).withOpacity(0.8)
+        : (isDark ? AppColors.borderDark : AppColors.borderLight).withOpacity(0.8);
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = borderColor
+        ..strokeWidth = 1.8,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant HexagonPainter oldDelegate) =>
+      oldDelegate.isActive != isActive ||
+      oldDelegate.isLoading != isLoading ||
+      oldDelegate.isDark != isDark;
 }
