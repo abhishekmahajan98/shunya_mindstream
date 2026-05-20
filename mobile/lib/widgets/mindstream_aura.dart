@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class MindstreamAura extends StatefulWidget {
   final bool isActive;    // recording in progress
   final bool isLoading;   // initialising
-  final double amplitude; // 0.0–1.0 from speech_to_text sound level
+  final double amplitude; // 0.0–1.0 from mic level (local PCM, UI only)
 
   const MindstreamAura({
     super.key,

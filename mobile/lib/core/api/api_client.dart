@@ -10,6 +10,17 @@ const String kApiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://shunyamindstream-production.up.railway.app',
 );
 
+/// WebSocket base URL derived from [kApiBaseUrl].
+String get kWsBaseUrl {
+  if (kApiBaseUrl.startsWith('https://')) {
+    return kApiBaseUrl.replaceFirst('https://', 'wss://');
+  }
+  if (kApiBaseUrl.startsWith('http://')) {
+    return kApiBaseUrl.replaceFirst('http://', 'ws://');
+  }
+  return kApiBaseUrl;
+}
+
 Dio createDio() {
   final dio = Dio(BaseOptions(
     baseUrl: kApiBaseUrl,

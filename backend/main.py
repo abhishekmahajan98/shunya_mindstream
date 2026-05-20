@@ -7,19 +7,19 @@ from typing import Optional
 import google.genai as genai
 from google.genai import types as genai_types
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from supabase import Client, create_client
+
+from speech_stream import handle_speech_stream
 
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY", "")   # publishable key in env
-AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "")
-AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "eastus")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
     "ALLOWED_ORIGINS",
@@ -214,24 +214,10 @@ async def me(auth: AuthResult = Depends(get_current_user)):
     return {"user_id": auth.id, "email": auth.user.email, "profile": profile_resp.data or {}}
 
 
-# ── Azure Speech token ────────────────────────────────────────
-@app.get("/api/get-speech-token")
-async def get_speech_token(auth: AuthResult = Depends(get_current_user)):
-    if not AZURE_SPEECH_KEY or not AZURE_SPEECH_REGION:
-        raise HTTPException(status_code=500, detail="Azure Speech not configured.")
-
-    url = f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
-    headers = {
-        "Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY,
-        "Content-type": "application/x-www-form-urlencoded",
-    }
-    try:
-        resp = req_lib.post(url, headers=headers, timeout=5)
-        resp.raise_for_status()
-        return {"token": resp.text, "region": AZURE_SPEECH_REGION}
-    except req_lib.exceptions.RequestException as e:
-        print(f"[Azure] token fetch error: {e}")
-        raise HTTPException(status_code=502, detail="Failed to reach Azure STS.")
+# ── Azure Speech streaming (backend-only; client never calls Azure) ──
+@app.websocket("/api/speech/stream")
+async def speech_stream(websocket: WebSocket, token: str = Query(...)):
+    await handle_speech_stream(websocket, auth_client, token)
 
 
 # ── Recordings ────────────────────────────────────────────────
@@ -566,6 +552,11 @@ async def update_meeting(meeting_id: str, body: dict, auth: AuthResult = Depends
     udb = get_user_db(auth.token)
     result = udb.table("meeting_notes").update(update).eq("id", meeting_id).execute()
     return result.data[0] if result.data else {}
+
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/")
