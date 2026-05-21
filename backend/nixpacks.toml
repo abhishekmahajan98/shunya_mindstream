@@ -1,3 +1,3 @@
 # Used when Railway service root is set to /backend
 [phases.setup]
-aptPkgs = ["...", "libuuid1", "libasound2", "ca-certificates"]
+aptPkgs = ["...", "libuuid1", "libasound2t64", "ca-certificates"]
