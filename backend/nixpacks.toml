@@ -1,0 +1,3 @@
+# Used when Railway service root is set to /backend
+[phases.setup]
+aptPkgs = ["...", "libuuid1", "libasound2", "ca-certificates"]

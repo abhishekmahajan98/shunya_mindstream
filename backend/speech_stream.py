@@ -7,7 +7,6 @@ import json
 import os
 from typing import Optional
 
-import azure.cognitiveservices.speech as speechsdk
 from fastapi import WebSocket, WebSocketDisconnect
 
 AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY", "")
@@ -16,6 +15,13 @@ AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "eastus")
 SAMPLE_RATE = 16000
 BITS_PER_SAMPLE = 16
 CHANNELS = 1
+
+
+def _speechsdk():
+    """Import Azure Speech SDK only when a stream session starts."""
+    import azure.cognitiveservices.speech as speechsdk
+
+    return speechsdk
 
 
 async def handle_speech_stream(websocket: WebSocket, auth_client, token: str) -> None:
@@ -27,6 +33,15 @@ async def handle_speech_stream(websocket: WebSocket, auth_client, token: str) ->
       - Client -> server text JSON: {"action": "stop"} to end session
     """
     await websocket.accept()
+
+    try:
+        speechsdk = _speechsdk()
+    except OSError as e:
+        await websocket.send_json(
+            {"event": "error", "message": f"Speech SDK unavailable on server: {e}"}
+        )
+        await websocket.close(code=1011)
+        return
 
     if not AZURE_SPEECH_KEY or not AZURE_SPEECH_REGION:
         await websocket.send_json(
@@ -72,19 +87,19 @@ async def handle_speech_stream(websocket: WebSocket, auth_client, token: str) ->
         audio_config=audio_config,
     )
 
-    def on_recognizing(evt: speechsdk.SpeechRecognitionEventArgs) -> None:
+    def on_recognizing(evt) -> None:
         if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
             text = (evt.result.text or "").strip()
             if text:
                 emit("partial", text=text)
 
-    def on_recognized(evt: speechsdk.SpeechRecognitionEventArgs) -> None:
+    def on_recognized(evt) -> None:
         if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
             text = (evt.result.text or "").strip()
             if text:
                 emit("final", text=text)
 
-    def on_canceled(evt: speechsdk.SpeechRecognitionCanceledEventArgs) -> None:
+    def on_canceled(evt) -> None:
         details = evt.result.cancellation_details
         message = details.error_details or str(details.reason)
         emit("error", message=message)

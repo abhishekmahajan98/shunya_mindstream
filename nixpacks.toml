@@ -1,2 +1,4 @@
+# Railway/Nixpacks: Azure Speech SDK needs native libs (libuuid.so.1, ALSA).
+# nixPkgs alone (e.g. util-linux) does not expose libuuid.so.1 on the default loader path.
 [phases.setup]
-nixPkgs = ["...", "util-linux"]
+aptPkgs = ["...", "libuuid1", "libasound2", "ca-certificates"]

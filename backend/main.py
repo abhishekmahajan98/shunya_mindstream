@@ -13,8 +13,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from supabase import Client, create_client
 
-from speech_stream import handle_speech_stream
-
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────
@@ -217,6 +215,9 @@ async def me(auth: AuthResult = Depends(get_current_user)):
 # ── Azure Speech streaming (backend-only; client never calls Azure) ──
 @app.websocket("/api/speech/stream")
 async def speech_stream(websocket: WebSocket, token: str = Query(...)):
+    # Lazy import: Azure Speech native SDK must not block app startup on Railway.
+    from speech_stream import handle_speech_stream
+
     await handle_speech_stream(websocket, auth_client, token)
 
 
