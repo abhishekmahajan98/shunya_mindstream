@@ -1,3 +1,7 @@
 # Used when Railway service root is set to /backend
 [phases.setup]
-aptPkgs = ["...", "libuuid1", "libasound2t64", "ca-certificates"]
+nixLibs = ["...", "libuuid", "alsa-lib", "openssl"]
+aptPkgs = ["...", "libuuid1", "libasound2t64", "libssl3t64", "ca-certificates"]
+
+[start]
+cmd = "chmod +x start.sh && ./start.sh"
