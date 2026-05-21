@@ -40,6 +40,17 @@ class _MindstreamAuraState extends State<MindstreamAura>
   }
 
   @override
+  void didUpdateWidget(covariant MindstreamAura oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // AnimatedBuilder only ticks on _ctrl; amplitude comes from parent setState.
+    if (widget.amplitude != oldWidget.amplitude ||
+        widget.isActive != oldWidget.isActive ||
+        widget.isLoading != oldWidget.isLoading) {
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(

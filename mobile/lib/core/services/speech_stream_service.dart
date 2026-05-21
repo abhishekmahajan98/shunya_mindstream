@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -16,6 +17,7 @@ class SpeechStreamService {
   StreamSubscription<Uint8List>? _audioSub;
   StreamSubscription<dynamic>? _wsSub;
   bool _active = false;
+  DateTime? _lastLevelEmit;
 
   bool get isActive => _active;
 
@@ -107,7 +109,14 @@ class SpeechStreamService {
         (chunk) {
           if (!_active || _channel == null) return;
           _channel!.sink.add(chunk);
-          onSoundLevel?.call(_pcmAmplitude(chunk));
+          if (onSoundLevel != null) {
+            final now = DateTime.now();
+            if (_lastLevelEmit == null ||
+                now.difference(_lastLevelEmit!).inMilliseconds >= 33) {
+              _lastLevelEmit = now;
+              onSoundLevel!(_pcmAmplitude(chunk));
+            }
+          }
         },
         onError: (e) {
           onError?.call('Microphone error: $e');
@@ -146,16 +155,21 @@ class SpeechStreamService {
 
   Future<void> dispose() => stop();
 
+  /// Maps mic RMS into 0–1 with sensitivity similar to the old speech_to_text
+  /// `(level + 2) / 10` curve so MindstreamAura reacts while speaking.
   static double _pcmAmplitude(Uint8List bytes) {
     if (bytes.length < 2) return 0;
-    var sum = 0.0;
     final count = bytes.length ~/ 2;
-    for (var i = 0; i < bytes.length - 1; i += 2) {
-      final sample = bytes[i] | (bytes[i + 1] << 8);
-      final signed = sample > 32767 ? sample - 65536 : sample;
-      sum += signed * signed;
+    final bd = ByteData.sublistView(bytes);
+    var sum = 0.0;
+    for (var i = 0; i < count; i++) {
+      final s = bd.getInt16(i * 2, Endian.little).toDouble();
+      sum += s * s;
     }
     final rms = math.sqrt(sum / count);
-    return (rms / 32768.0).clamp(0.0, 1.0);
+    const minRms = 180.0;
+    const maxRms = 9000.0;
+    final linear = ((rms - minRms) / (maxRms - minRms)).clamp(0.0, 1.0);
+    return math.pow(linear, 0.55).toDouble();
   }
 }
