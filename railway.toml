@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "chmod +x start.sh && ./start.sh"
+startCommand = "PYTHONPATH=. uvicorn main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "ON_FAILURE"
 healthCheckPath = "/api/health"
 healthCheckTimeout = 100

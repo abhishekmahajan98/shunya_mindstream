@@ -1,8 +1,5 @@
-# Railway/Nixpacks: Azure Speech SDK needs native libs (libuuid.so.1, ALSA, OpenSSL).
-# apt installs to /usr/lib; runtime must see them via LD_LIBRARY_PATH (see backend/start.sh).
+# Azure Speech SDK native deps — use nixLibs (not apt LD_LIBRARY_PATH).
+# Prepending /usr/lib to LD_LIBRARY_PATH breaks Nix Python (__vdso_time dlopen error).
 [phases.setup]
 nixLibs = ["...", "libuuid", "alsa-lib", "openssl"]
 aptPkgs = ["...", "libuuid1", "libasound2t64", "libssl3t64", "ca-certificates"]
-
-[start]
-cmd = "chmod +x start.sh && ./start.sh"
