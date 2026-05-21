@@ -10,15 +10,17 @@ const String kApiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://shunyamindstream-production.up.railway.app',
 );
 
-/// WebSocket base URL derived from [kApiBaseUrl].
-String get kWsBaseUrl {
-  if (kApiBaseUrl.startsWith('https://')) {
-    return kApiBaseUrl.replaceFirst('https://', 'wss://');
-  }
-  if (kApiBaseUrl.startsWith('http://')) {
-    return kApiBaseUrl.replaceFirst('http://', 'ws://');
-  }
-  return kApiBaseUrl;
+/// WebSocket URI for backend speech streaming (explicit scheme/host/port).
+Uri speechStreamWsUri(String accessToken) {
+  final http = Uri.parse(kApiBaseUrl);
+  final secure = http.scheme == 'https';
+  return Uri(
+    scheme: secure ? 'wss' : 'ws',
+    host: http.host,
+    port: http.hasPort ? http.port : (secure ? 443 : 80),
+    path: '/api/speech/stream',
+    queryParameters: {'token': accessToken},
+  );
 }
 
 Dio createDio() {

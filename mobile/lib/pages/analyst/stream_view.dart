@@ -940,7 +940,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           ),
                         ),
                       )
-                    : Column(
+                    : SingleChildScrollView(
+                        child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           GestureDetector(
@@ -1054,6 +1055,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             ),
                           ],
                         ],
+                        ),
                       ),
           ),
         ),

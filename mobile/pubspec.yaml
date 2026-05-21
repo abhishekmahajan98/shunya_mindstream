@@ -23,7 +23,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
 
   # Mic capture streamed to backend Azure Speech proxy
-  record: ^5.2.1
+  record: ^6.2.0
   web_socket_channel: ^3.0.2
 
   # Audio playback (for archive)

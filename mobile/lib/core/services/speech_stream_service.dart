@@ -35,11 +35,21 @@ class SpeechStreamService {
       return;
     }
 
-    final wsUri = Uri.parse(
-      '$kWsBaseUrl/api/speech/stream?token=${Uri.encodeQueryComponent(token)}',
-    );
+    final wsUri = speechStreamWsUri(token);
+    debugPrint('[SpeechStream] Connecting to $wsUri');
 
-    _channel = WebSocketChannel.connect(wsUri);
+    try {
+      _channel = WebSocketChannel.connect(wsUri);
+      await _channel!.ready.timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('[SpeechStream] Connect failed: $e');
+      onError?.call(
+        'Could not connect to speech server. Check network or API_URL.',
+      );
+      await stop();
+      return;
+    }
+
     _active = true;
 
     _wsSub = _channel!.stream.listen(
@@ -66,7 +76,8 @@ class SpeechStreamService {
         }
       },
       onError: (e) {
-        onError?.call('Connection lost: $e');
+        debugPrint('[SpeechStream] Stream error: $e');
+        onError?.call('Speech connection lost');
         stop();
       },
       onDone: () {
@@ -83,25 +94,30 @@ class SpeechStreamService {
       return;
     }
 
-    final stream = await _recorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-    );
+    try {
+      final stream = await _recorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
 
-    _audioSub = stream.listen(
-      (chunk) {
-        if (!_active || _channel == null) return;
-        _channel!.sink.add(chunk);
-        onSoundLevel?.call(_pcmAmplitude(chunk));
-      },
-      onError: (e) {
-        onError?.call('Microphone error: $e');
-        stop();
-      },
-    );
+      _audioSub = stream.listen(
+        (chunk) {
+          if (!_active || _channel == null) return;
+          _channel!.sink.add(chunk);
+          onSoundLevel?.call(_pcmAmplitude(chunk));
+        },
+        onError: (e) {
+          onError?.call('Microphone error: $e');
+          stop();
+        },
+      );
+    } catch (e) {
+      onError?.call('Could not start microphone: $e');
+      await stop();
+    }
   }
 
   Future<void> stop() async {
