@@ -14,7 +14,6 @@ import '../../core/services/speech_stream_service.dart';
 import '../../core/services/sync_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/mindstream_aura.dart';
-import '../../widgets/stat_chip.dart';
 
 class StreamView extends ConsumerStatefulWidget {
   final Prompt? selectedPrompt;
@@ -83,7 +82,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
   @override
   void didUpdateWidget(covariant StreamView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.resumingDraft != null && widget.resumingDraft != oldWidget.resumingDraft) {
+    if (widget.resumingDraft != null &&
+        widget.resumingDraft != oldWidget.resumingDraft) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadDraftFromMap(widget.resumingDraft!);
         widget.onDraftResumedProcessed?.call();
@@ -99,12 +99,15 @@ class _StreamViewState extends ConsumerState<StreamView> {
       });
     }
   }
+
   void _loadDraftFromMap(Map<String, dynamic> draft) {
     setState(() {
       _resumingDraftId = draft['id'] as String?;
-      _inputMode = draft['type'] == 'prompted' ? 'voice' : ((draft['duration_secs'] as int? ?? 0) > 0 ? 'voice' : 'text');
+      _inputMode = draft['type'] == 'prompted'
+          ? 'voice'
+          : ((draft['duration_secs'] as int? ?? 0) > 0 ? 'voice' : 'text');
       final tr = draft['transcript'] as String? ?? '';
-      
+
       _liveTranscript = tr;
       _accumulatedTranscript = tr;
       _voiceEditController.text = tr;
@@ -123,7 +126,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
       } else {
         widget.onClearPrompt();
       }
-      
+
       _expanded = true;
       _saveStatus = 'idle';
       _saveError = null;
@@ -146,8 +149,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
       await _startListening();
     }
   }
-
-
 
   Future<void> _startListening() async {
     setState(() {
@@ -251,7 +252,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
   }
 
   Future<void> _handleSave() async {
-    final transcript = _inputMode == 'voice' ? _voiceEditController.text : _textController.text;
+    final transcript = _inputMode == 'voice'
+        ? _voiceEditController.text
+        : _textController.text;
     if (transcript.trim().isEmpty) return;
 
     setState(() {
@@ -305,13 +308,13 @@ class _StreamViewState extends ConsumerState<StreamView> {
           'duration_secs': _inputMode == 'voice' ? _durationSecs : 0,
           'word_count': _wordCount(transcript),
         });
-        
+
         await _loadDrafts();
 
         setState(() {
           _saveStatus = 'idle';
         });
-        
+
         if (mounted) {
           showDialog(
             context: context,
@@ -319,46 +322,50 @@ class _StreamViewState extends ConsumerState<StreamView> {
             builder: (ctx) {
               final isDark = Theme.of(ctx).brightness == Brightness.dark;
               return AlertDialog(
-                backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                backgroundColor:
+                    isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
                 title: Text(
-                'Upload Failed',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                  'Upload Failed',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                  ),
                 ),
-              ),
-              content: Text(
-                'Your connection may be unstable. Your recording has been safely saved to Draft Notes.',
-                style: GoogleFonts.inter(
-                  color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                content: Text(
+                  'Your connection may be unstable. Your recording has been safely saved to Draft Notes.',
+                  style: GoogleFonts.inter(
+                    color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                  ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    if (mounted) {
-                      setState(() {
-                        if (_inputMode == 'voice') {
-                          _liveTranscript = '';
-                          _accumulatedTranscript = '';
-                          _voiceEditController.clear();
-                        } else {
-                          _textController.clear();
-                          _hasSubmittedText = false;
-                        }
-                        _expanded = false;
-                        _durationSecs = 0;
-                        _saveError = null;
-                      });
-                      widget.onClearPrompt();
-                    }
-                  },
-                  child: Text('OK', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.violet)),
-                ),
-              ],
-            );
-          },
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      if (mounted) {
+                        setState(() {
+                          if (_inputMode == 'voice') {
+                            _liveTranscript = '';
+                            _accumulatedTranscript = '';
+                            _voiceEditController.clear();
+                          } else {
+                            _textController.clear();
+                            _hasSubmittedText = false;
+                          }
+                          _expanded = false;
+                          _durationSecs = 0;
+                          _saveError = null;
+                        });
+                        widget.onClearPrompt();
+                      }
+                    },
+                    child: Text('OK',
+                        style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.violet)),
+                  ),
+                ],
+              );
+            },
           );
         }
       } catch (syncErr) {
@@ -373,7 +380,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
   }
 
   Future<void> _handleSaveDraft() async {
-    final transcript = _inputMode == 'voice' ? _voiceEditController.text : _textController.text;
+    final transcript = _inputMode == 'voice'
+        ? _voiceEditController.text
+        : _textController.text;
     if (transcript.trim().isEmpty) return;
 
     setState(() {
@@ -392,7 +401,7 @@ class _StreamViewState extends ConsumerState<StreamView> {
         'duration_secs': _inputMode == 'voice' ? _durationSecs : 0,
         'word_count': _wordCount(transcript),
       });
-      
+
       setState(() {
         _saveStatus = 'done';
         _saveError = 'Saved as draft';
@@ -454,7 +463,6 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
     return Column(
       children: [
-
         // Mode Selector: Voice / Text segment
         Opacity(
           opacity: _recordingSessionActive ? 0.4 : 1.0,
@@ -465,7 +473,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
+                  color:
+                      isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -509,23 +518,29 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
         // Main Orb / Write Card capture space
         Expanded(
-          child: Center(
-            child: hasTranscript
-                ? Padding(
+          child: hasTranscript
+              ? Center(
+                  child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.edit_note_rounded, size: 24, color: isDark ? AppColors.textDark2 : AppColors.textLight2),
+                            Icon(Icons.edit_note_rounded,
+                                size: 24,
+                                color: isDark
+                                    ? AppColors.textDark2
+                                    : AppColors.textLight2),
                             const SizedBox(width: 12),
                             Text(
                               'Review & Edit',
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.textDark : AppColors.textLight,
+                                color: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
                               ),
                             ),
                           ],
@@ -535,12 +550,19 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.08),
+                                color: (isDark
+                                        ? AppColors.teal
+                                        : AppColors.tealDark)
+                                    .withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.15),
+                                  color: (isDark
+                                          ? AppColors.teal
+                                          : AppColors.tealDark)
+                                      .withOpacity(0.15),
                                 ),
                               ),
                               child: Row(
@@ -548,13 +570,16 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                 children: [
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
-                                    onTap: () => _showPromptSelectorBottomSheet(context),
+                                    onTap: () =>
+                                        _showPromptSelectorBottomSheet(context),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
                                           Icons.psychology_rounded,
-                                          color: isDark ? AppColors.teal : AppColors.tealDark,
+                                          color: isDark
+                                              ? AppColors.teal
+                                              : AppColors.tealDark,
                                           size: 12,
                                         ),
                                         const SizedBox(width: 6),
@@ -563,7 +588,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                           style: GoogleFonts.inter(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
-                                            color: isDark ? AppColors.teal : AppColors.tealDark,
+                                            color: isDark
+                                                ? AppColors.teal
+                                                : AppColors.tealDark,
                                           ),
                                         ),
                                       ],
@@ -576,7 +603,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                     child: Icon(
                                       Icons.close_rounded,
                                       size: 12,
-                                      color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                      color: isDark
+                                          ? AppColors.textDark3
+                                          : AppColors.textLight3,
                                     ),
                                   ),
                                 ],
@@ -589,14 +618,18 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             alignment: Alignment.centerLeft,
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: () => _showPromptSelectorBottomSheet(context),
+                              onTap: () =>
+                                  _showPromptSelectorBottomSheet(context),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: Colors.transparent,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                    color: isDark
+                                        ? AppColors.borderDark
+                                        : AppColors.borderLight,
                                     style: BorderStyle.solid,
                                   ),
                                 ),
@@ -605,7 +638,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                   children: [
                                     Icon(
                                       Icons.add_rounded,
-                                      color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                      color: isDark
+                                          ? AppColors.textDark2
+                                          : AppColors.textLight2,
                                       size: 12,
                                     ),
                                     const SizedBox(width: 4),
@@ -614,7 +649,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
-                                        color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                        color: isDark
+                                            ? AppColors.textDark2
+                                            : AppColors.textLight2,
                                       ),
                                     ),
                                   ],
@@ -628,12 +665,21 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           child: Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: isDark ? AppColors.surfaceDark2.withValues(alpha: 0.3) : AppColors.surfaceLight2.withValues(alpha: 0.3),
+                              color: isDark
+                                  ? AppColors.surfaceDark2
+                                      .withValues(alpha: 0.3)
+                                  : AppColors.surfaceLight2
+                                      .withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                              border: Border.all(
+                                  color: isDark
+                                      ? AppColors.borderDark
+                                      : AppColors.borderLight),
                             ),
                             child: TextField(
-                              controller: _inputMode == 'voice' ? _voiceEditController : _textController,
+                              controller: _inputMode == 'voice'
+                                  ? _voiceEditController
+                                  : _textController,
                               maxLines: null,
                               expands: true,
                               keyboardType: TextInputType.multiline,
@@ -646,7 +692,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                               style: GoogleFonts.inter(
                                 fontSize: 15,
                                 height: 1.6,
-                                color: isDark ? AppColors.textDark : AppColors.textLight,
+                                color: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
                               ),
                             ),
                           ),
@@ -657,15 +705,25 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             child: Column(
                               children: [
                                 Icon(
-                                  _saveError != null ? Icons.edit_note_rounded : Icons.check_circle_outline,
-                                  color: _saveError != null ? (isDark ? AppColors.teal : AppColors.tealDark) : AppColors.success,
+                                  _saveError != null
+                                      ? Icons.edit_note_rounded
+                                      : Icons.check_circle_outline,
+                                  color: _saveError != null
+                                      ? (isDark
+                                          ? AppColors.teal
+                                          : AppColors.tealDark)
+                                      : AppColors.success,
                                   size: 32,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   _saveError ?? 'Saved Successfully',
                                   style: GoogleFonts.inter(
-                                    color: _saveError != null ? (isDark ? AppColors.teal : AppColors.tealDark) : AppColors.success,
+                                    color: _saveError != null
+                                        ? (isDark
+                                            ? AppColors.teal
+                                            : AppColors.tealDark)
+                                        : AppColors.success,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 16,
                                   ),
@@ -678,23 +736,41 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           if (_saveError != null) ...[
                             Text(
                               _saveError!,
-                              style: GoogleFonts.inter(color: AppColors.error, fontSize: 13),
+                              style: GoogleFonts.inter(
+                                  color: AppColors.error, fontSize: 13),
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 16),
                           ],
                           if (_inputMode == 'voice') ...[
                             OutlinedButton.icon(
-                              onPressed: _saving ? null : () async {
-                                await _startListening();
-                              },
+                              onPressed: _saving
+                                  ? null
+                                  : () async {
+                                      await _startListening();
+                                    },
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                                side: BorderSide(
+                                    color: isDark
+                                        ? AppColors.borderDark
+                                        : AppColors.borderLight),
                               ),
-                              icon: Icon(Icons.mic_none_outlined, size: 20, color: isDark ? AppColors.textDark : AppColors.textLight),
-                              label: Text('Continue Recording', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? AppColors.textDark : AppColors.textLight)),
+                              icon: Icon(Icons.mic_none_outlined,
+                                  size: 20,
+                                  color: isDark
+                                      ? AppColors.textDark
+                                      : AppColors.textLight),
+                              label: Text('Continue Recording',
+                                  style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? AppColors.textDark
+                                          : AppColors.textLight)),
                             ),
                             const SizedBox(height: 12),
                           ],
@@ -716,23 +792,48 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                         });
                                       },
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  side: BorderSide(
+                                      color: isDark
+                                          ? AppColors.borderDark
+                                          : AppColors.borderLight),
                                 ),
-                                child: Icon(Icons.delete_outline, size: 20, color: isDark ? AppColors.textDark2 : AppColors.textLight2),
+                                child: Icon(Icons.delete_outline,
+                                    size: 20,
+                                    color: isDark
+                                        ? AppColors.textDark2
+                                        : AppColors.textLight2),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: _saving ? null : _handleSaveDraft,
                                   style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                    side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(16)),
+                                    side: BorderSide(
+                                        color: isDark
+                                            ? AppColors.borderDark
+                                            : AppColors.borderLight),
                                   ),
-                                  icon: Icon(Icons.save_as_outlined, size: 18, color: isDark ? AppColors.textDark : AppColors.textLight),
-                                  label: Text('Save Draft', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? AppColors.textDark : AppColors.textLight)),
+                                  icon: Icon(Icons.save_as_outlined,
+                                      size: 18,
+                                      color: isDark
+                                          ? AppColors.textDark
+                                          : AppColors.textLight),
+                                  label: Text('Save Draft',
+                                      style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? AppColors.textDark
+                                              : AppColors.textLight)),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -740,16 +841,37 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                 child: ElevatedButton.icon(
                                   onPressed: _saving ? null : _handleSave,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: isDark ? AppColors.textDark : AppColors.textLight,
-                                    foregroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    backgroundColor: isDark
+                                        ? AppColors.textDark
+                                        : AppColors.textLight,
+                                    foregroundColor: isDark
+                                        ? AppColors.bgDark
+                                        : AppColors.bgLight,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(16)),
                                     elevation: 0,
                                   ),
                                   icon: _saving
-                                      ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: isDark ? AppColors.bgDark : AppColors.bgLight))
-                                      : const Icon(Icons.cloud_upload_outlined, size: 18),
-                                  label: Text(_saveStatus == 'saving' ? 'Saving…' : 'Upload', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+                                      ? SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: isDark
+                                                  ? AppColors.bgDark
+                                                  : AppColors.bgLight))
+                                      : const Icon(Icons.cloud_upload_outlined,
+                                          size: 18),
+                                  label: Text(
+                                      _saveStatus == 'saving'
+                                          ? 'Saving…'
+                                          : 'Upload',
+                                      style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600)),
                                 ),
                               ),
                             ],
@@ -757,307 +879,455 @@ class _StreamViewState extends ConsumerState<StreamView> {
                         ],
                       ],
                     ),
-                  )
-                : _inputMode == 'text'
-                    ? Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.surfaceDark.withValues(alpha: 0.65)
-                                : AppColors.surfaceLight.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                  ),
+                )
+              : _inputMode == 'text'
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        const outerPad = 24.0;
+                        const innerPad = 16.0;
+                        const footerBudget = 168.0;
+                        final viewportH = constraints.maxHeight;
+                        final kbInset = MediaQuery.viewInsetsOf(context).bottom;
+                        final cardInnerMax =
+                            viewportH - outerPad * 2 - innerPad * 2;
+                        final fieldHeight = math.max(
+                          220.0,
+                          cardInnerMax - footerBudget,
+                        );
+
+                        return SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              outerPad,
+                              outerPad,
+                              outerPad,
+                              outerPad + kbInset,
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _textController,
-                                  maxLines: null,
-                                  keyboardType: TextInputType.multiline,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Write your mindstream down...',
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    fillColor: Colors.transparent,
-                                  ),
-                                  style: GoogleFonts.inter(
-                                    height: 1.6,
-                                    color: isDark ? AppColors.textDark : AppColors.textLight,
-                                  ),
+                            child: Container(
+                              padding: const EdgeInsets.all(innerPad),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? AppColors.surfaceDark
+                                        .withValues(alpha: 0.65)
+                                    : AppColors.surfaceLight
+                                        .withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isDark
+                                      ? AppColors.borderDark
+                                      : AppColors.borderLight,
                                 ),
                               ),
-                              if (_saveError != null && _saveStatus == 'idle') ...[
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Text(
-                                    _saveError!,
-                                    style: GoogleFonts.inter(color: AppColors.error, fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                              const Divider(),
-                              const SizedBox(height: 12),
-                              ValueListenableBuilder<TextEditingValue>(
-                                valueListenable: _textController,
-                                builder: (context, value, _) {
-                                  final hasText = value.text.trim().isNotEmpty;
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          StatChip('${_wordCount(value.text)} words'),
-                                          if (hasText && _saveStatus != 'done')
-                                            IconButton(
-                                              onPressed: _saving
-                                                  ? null
-                                                  : () {
-                                                      setState(() {
-                                                        _liveTranscript = '';
-                                                        _accumulatedTranscript = '';
-                                                        _voiceEditController.clear();
-                                                        _textController.clear();
-                                                        _hasSubmittedText = false;
-                                                        _durationSecs = 0;
-                                                        _saveStatus = 'idle';
-                                                        _saveError = null;
-                                                      });
-                                                    },
-                                              icon: Icon(
-                                                Icons.delete_outline,
-                                                color: isDark ? AppColors.textDark2 : AppColors.textLight2,
-                                                size: 22,
-                                              ),
-                                              tooltip: 'Clear',
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      if (_saveStatus == 'done')
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.success.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: AppColors.success.withOpacity(0.15),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              const Icon(
-                                                Icons.check_circle_outline,
-                                                color: AppColors.success,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                _saveError ?? 'Saved Successfully',
-                                                style: GoogleFonts.inter(
-                                                  color: AppColors.success,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                      else
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: (_saving || !hasText) ? null : _handleSaveDraft,
-                                                style: OutlinedButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                  side: BorderSide(
-                                                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                                                  ),
-                                                ),
-                                                icon: Icon(
-                                                  Icons.save_as_outlined,
-                                                  size: 16,
-                                                  color: isDark ? AppColors.textDark : AppColors.textLight,
-                                                ),
-                                                label: Text(
-                                                  'Save Draft',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isDark ? AppColors.textDark : AppColors.textLight,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                onPressed: (_saving || !hasText) ? null : _handleSave,
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: isDark ? AppColors.textDark : AppColors.textLight,
-                                                  foregroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
-                                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                  elevation: 0,
-                                                ),
-                                                icon: _saving
-                                                    ? SizedBox(
-                                                        height: 14,
-                                                        width: 14,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: isDark ? AppColors.bgDark : AppColors.bgLight,
-                                                        ),
-                                                      )
-                                                    : const Icon(Icons.cloud_upload_outlined, size: 16),
-                                                label: Text(
-                                                  _saveStatus == 'saving' ? 'Saving…' : 'Upload',
-                                                  style: GoogleFonts.inter(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                    ],
-                                  );
-                                },
-                              )
-                            ],
-                          ),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GestureDetector(
-                            onTap: _isLoadingSpeech ? null : _handleVoiceToggle,
-                            child: SizedBox(
-                              width: 280,
-                              height: 280,
-                              child: Stack(
-                                alignment: Alignment.center,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  MindstreamAura(
-                                    isActive: _recordingSessionActive,
-                                    isLoading: _isLoadingSpeech,
-                                    amplitude: _soundLevel,
-                                  ),
-                                  // Central Glassmorphic Hexagon Button (Hive theme)
                                   SizedBox(
-                                    width: 110,
-                                    height: 110,
-                                    child: Stack(
-                                      children: [
-                                        CustomPaint(
-                                          painter: HexagonPainter(
-                                            isActive: _recordingSessionActive,
-                                            isLoading: _isLoadingSpeech,
-                                            isDark: isDark,
-                                            cornerRadius: 14,
-                                          ),
-                                          child: const SizedBox.expand(),
-                                        ),
-                                        ClipPath(
-                                          clipper: HexagonClipper(cornerRadius: 14),
-                                          child: BackdropFilter(
-                                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                            child: Center(
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
+                                    height: fieldHeight,
+                                    child: TextField(
+                                      controller: _textController,
+                                      maxLines: null,
+                                      expands: true,
+                                      textAlignVertical: TextAlignVertical.top,
+                                      keyboardType: TextInputType.multiline,
+                                      decoration: const InputDecoration(
+                                        hintText:
+                                            'Write your mindstream down...',
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        fillColor: Colors.transparent,
+                                      ),
+                                      style: GoogleFonts.inter(
+                                        height: 1.6,
+                                        color: isDark
+                                            ? AppColors.textDark
+                                            : AppColors.textLight,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_saveError != null &&
+                                      _saveStatus == 'idle') ...[
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 8.0),
+                                      child: Text(
+                                        _saveError!,
+                                        style: GoogleFonts.inter(
+                                            color: AppColors.error,
+                                            fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                  const Divider(),
+                                  const SizedBox(height: 12),
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: _textController,
+                                    builder: (context, value, _) {
+                                      final hasText =
+                                          value.text.trim().isNotEmpty;
+                                      void clearDraft() {
+                                        setState(() {
+                                          _liveTranscript = '';
+                                          _accumulatedTranscript = '';
+                                          _voiceEditController.clear();
+                                          _textController.clear();
+                                          _hasSubmittedText = false;
+                                          _durationSecs = 0;
+                                          _saveStatus = 'idle';
+                                          _saveError = null;
+                                        });
+                                      }
+
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          if (_saveStatus == 'done')
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 12),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.success
+                                                    .withOpacity(0.08),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: AppColors.success
+                                                      .withOpacity(0.15),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
-                                                  if (_isLoadingSpeech)
-                                                    SizedBox(
-                                                      width: 24,
-                                                      height: 24,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2.5,
-                                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                                          isDark ? AppColors.teal : AppColors.tealDark,
-                                                        ),
-                                                      ),
-                                                    )
-                                                  else if (_recordingSessionActive)
-                                                    // Red recording dot / square
-                                                    Container(
-                                                      width: 22,
-                                                      height: 22,
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.redAccent,
-                                                        borderRadius: BorderRadius.circular(6),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: Colors.redAccent.withOpacity(0.4),
-                                                            blurRadius: 8,
-                                                            spreadRadius: 1,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    )
-                                                  else
-                                                    Icon(
-                                                      Icons.mic_none_rounded,
-                                                      size: 28,
-                                                      color: isDark ? AppColors.textDark : AppColors.textLight,
-                                                    ),
-                                                  const SizedBox(height: 8),
+                                                  const Icon(
+                                                    Icons.check_circle_outline,
+                                                    color: AppColors.success,
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 8),
                                                   Text(
-                                                    _isLoadingSpeech
-                                                        ? 'Starting…'
-                                                        : _recordingSessionActive
-                                                            ? 'Stop'
-                                                            : 'Record',
+                                                    _saveError ??
+                                                        'Saved Successfully',
                                                     style: GoogleFonts.inter(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
-                                                      letterSpacing: 0.5,
-                                                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                      color: AppColors.success,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
                                                     ),
                                                   ),
                                                 ],
                                               ),
+                                            )
+                                          else
+                                            Row(
+                                              children: [
+                                                Tooltip(
+                                                  message: 'Clear',
+                                                  child: OutlinedButton(
+                                                    onPressed: (_saving ||
+                                                            !hasText)
+                                                        ? null
+                                                        : clearDraft,
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                      padding:
+                                                          const EdgeInsets
+                                                              .all(12),
+                                                      minimumSize:
+                                                          const Size.square(
+                                                              44),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      side: BorderSide(
+                                                        color: isDark
+                                                            ? AppColors
+                                                                .borderDark
+                                                            : AppColors
+                                                                .borderLight,
+                                                      ),
+                                                    ),
+                                                    child: Icon(
+                                                      Icons.delete_outline,
+                                                      size: 22,
+                                                      color: isDark
+                                                          ? AppColors
+                                                              .textDark2
+                                                          : AppColors
+                                                              .textLight2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: OutlinedButton.icon(
+                                                    onPressed:
+                                                        (_saving || !hasText)
+                                                            ? null
+                                                            : _handleSaveDraft,
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          vertical: 12),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12)),
+                                                      side: BorderSide(
+                                                        color: isDark
+                                                            ? AppColors
+                                                                .borderDark
+                                                            : AppColors
+                                                                .borderLight,
+                                                      ),
+                                                    ),
+                                                    icon: Icon(
+                                                      Icons.save_as_outlined,
+                                                      size: 16,
+                                                      color: isDark
+                                                          ? AppColors.textDark
+                                                          : AppColors.textLight,
+                                                    ),
+                                                    label: Text(
+                                                      'Save Draft',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: isDark
+                                                            ? AppColors.textDark
+                                                            : AppColors
+                                                                .textLight,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: ElevatedButton.icon(
+                                                    onPressed:
+                                                        (_saving || !hasText)
+                                                            ? null
+                                                            : _handleSave,
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor: isDark
+                                                          ? AppColors.textDark
+                                                          : AppColors.textLight,
+                                                      foregroundColor: isDark
+                                                          ? AppColors.bgDark
+                                                          : AppColors.bgLight,
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          vertical: 12),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12)),
+                                                      elevation: 0,
+                                                    ),
+                                                    icon: _saving
+                                                        ? SizedBox(
+                                                            height: 14,
+                                                            width: 14,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color: isDark
+                                                                  ? AppColors
+                                                                      .bgDark
+                                                                  : AppColors
+                                                                      .bgLight,
+                                                            ),
+                                                          )
+                                                        : const Icon(
+                                                            Icons
+                                                                .cloud_upload_outlined,
+                                                            size: 16),
+                                                    label: Text(
+                                                      _saveStatus == 'saving'
+                                                          ? 'Saving…'
+                                                          : 'Upload',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
+                                        ],
+                                      );
+                                    },
+                                  ),
                                 ],
                               ),
                             ),
                           ),
-                          if (_saveError != null) ...[
-                            const SizedBox(height: 16),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24),
-                              child: Text(
-                                _saveError!,
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                  color: AppColors.error,
-                                  fontSize: 12,
+                        );
+                      },
+                    )
+                  : Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap:
+                                  _isLoadingSpeech ? null : _handleVoiceToggle,
+                              child: SizedBox(
+                                width: 280,
+                                height: 280,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    MindstreamAura(
+                                      isActive: _recordingSessionActive,
+                                      isLoading: _isLoadingSpeech,
+                                      amplitude: _soundLevel,
+                                    ),
+                                    // Central Glassmorphic Hexagon Button (Hive theme)
+                                    SizedBox(
+                                      width: 110,
+                                      height: 110,
+                                      child: Stack(
+                                        children: [
+                                          CustomPaint(
+                                            painter: HexagonPainter(
+                                              isActive: _recordingSessionActive,
+                                              isLoading: _isLoadingSpeech,
+                                              isDark: isDark,
+                                              cornerRadius: 14,
+                                            ),
+                                            child: const SizedBox.expand(),
+                                          ),
+                                          ClipPath(
+                                            clipper: HexagonClipper(
+                                                cornerRadius: 14),
+                                            child: BackdropFilter(
+                                              filter: ImageFilter.blur(
+                                                  sigmaX: 10, sigmaY: 10),
+                                              child: Center(
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    if (_isLoadingSpeech)
+                                                      SizedBox(
+                                                        width: 24,
+                                                        height: 24,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2.5,
+                                                          valueColor:
+                                                              AlwaysStoppedAnimation<
+                                                                  Color>(
+                                                            isDark
+                                                                ? AppColors.teal
+                                                                : AppColors
+                                                                    .tealDark,
+                                                          ),
+                                                        ),
+                                                      )
+                                                    else if (_recordingSessionActive)
+                                                      // Red recording dot / square
+                                                      Container(
+                                                        width: 22,
+                                                        height: 22,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color:
+                                                              Colors.redAccent,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(6),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors
+                                                                  .redAccent
+                                                                  .withOpacity(
+                                                                      0.4),
+                                                              blurRadius: 8,
+                                                              spreadRadius: 1,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      )
+                                                    else
+                                                      Icon(
+                                                        Icons.mic_none_rounded,
+                                                        size: 28,
+                                                        color: isDark
+                                                            ? AppColors.textDark
+                                                            : AppColors
+                                                                .textLight,
+                                                      ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      _isLoadingSpeech
+                                                          ? 'Starting…'
+                                                          : _recordingSessionActive
+                                                              ? 'Stop'
+                                                              : 'Record',
+                                                      style: GoogleFonts.inter(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        letterSpacing: 0.5,
+                                                        color: isDark
+                                                            ? AppColors.textDark
+                                                            : AppColors
+                                                                .textLight,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  ],
                                 ),
                               ),
                             ),
+                            if (_saveError != null) ...[
+                              const SizedBox(height: 16),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 24),
+                                child: Text(
+                                  _saveError!,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.error,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
                         ),
                       ),
-          ),
+                    ),
         ),
 
         // Subtitle / Prompt chip / Stopped Summary card zone
@@ -1072,9 +1342,12 @@ class _StreamViewState extends ConsumerState<StreamView> {
                   // Live voice recognition interim text — shown above the prompt pill
                   if (_inputMode == 'voice' && _isListening)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
+                      padding:
+                          const EdgeInsets.only(bottom: 8, left: 16, right: 16),
                       child: Text(
-                        _liveTranscript.isEmpty ? 'Listening...' : _getLastWords(_liveTranscript),
+                        _liveTranscript.isEmpty
+                            ? 'Listening...'
+                            : _getLastWords(_liveTranscript),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: 16,
@@ -1093,12 +1366,17 @@ class _StreamViewState extends ConsumerState<StreamView> {
                       child: GestureDetector(
                         onTap: widget.onViewDrafts,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfaceDark2.withOpacity(0.8) : AppColors.surfaceLight2.withOpacity(0.8),
+                            color: isDark
+                                ? AppColors.surfaceDark2.withOpacity(0.8)
+                                : AppColors.surfaceLight2.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                              color: isDark
+                                  ? AppColors.borderDark
+                                  : AppColors.borderLight,
                             ),
                           ),
                           child: Row(
@@ -1115,13 +1393,17 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                                    color: isDark
+                                        ? AppColors.textDark
+                                        : AppColors.textLight,
                                   ),
                                 ),
                               ),
                               Icon(
                                 Icons.chevron_right_rounded,
-                                color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                color: isDark
+                                    ? AppColors.textDark3
+                                    : AppColors.textLight3,
                                 size: 18,
                               ),
                             ],
@@ -1133,12 +1415,16 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.08),
+                          color: (isDark ? AppColors.teal : AppColors.tealDark)
+                              .withOpacity(0.08),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: (isDark ? AppColors.teal : AppColors.tealDark).withOpacity(0.15),
+                            color:
+                                (isDark ? AppColors.teal : AppColors.tealDark)
+                                    .withOpacity(0.15),
                           ),
                         ),
                         child: Row(
@@ -1146,13 +1432,16 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           children: [
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: () => _showPromptSelectorBottomSheet(context),
+                              onTap: () =>
+                                  _showPromptSelectorBottomSheet(context),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.psychology_rounded,
-                                    color: isDark ? AppColors.teal : AppColors.tealDark,
+                                    color: isDark
+                                        ? AppColors.teal
+                                        : AppColors.tealDark,
                                     size: 14,
                                   ),
                                   const SizedBox(width: 8),
@@ -1161,7 +1450,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                                      color: isDark
+                                          ? AppColors.textDark
+                                          : AppColors.textLight,
                                     ),
                                   ),
                                 ],
@@ -1173,7 +1464,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                               child: Icon(
                                 Icons.close_rounded,
                                 size: 14,
-                                color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                color: isDark
+                                    ? AppColors.textDark3
+                                    : AppColors.textLight3,
                               ),
                             ),
                           ],
@@ -1184,19 +1477,25 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark2.withOpacity(0.8) : AppColors.surfaceLight2.withOpacity(0.8),
+                          color: isDark
+                              ? AppColors.surfaceDark2.withOpacity(0.8)
+                              : AppColors.surfaceLight2.withOpacity(0.8),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                            color: isDark
+                                ? AppColors.borderDark
+                                : AppColors.borderLight,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             GestureDetector(
-                              onTap: () => _showPromptSelectorBottomSheet(context),
+                              onTap: () =>
+                                  _showPromptSelectorBottomSheet(context),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1211,14 +1510,18 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                                      color: isDark
+                                          ? AppColors.textDark
+                                          : AppColors.textLight,
                                     ),
                                   ),
                                   const SizedBox(width: 4),
                                   Icon(
                                     Icons.chevron_right_rounded,
                                     size: 14,
-                                    color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                    color: isDark
+                                        ? AppColors.textDark3
+                                        : AppColors.textLight3,
                                   ),
                                 ],
                               ),
@@ -1227,22 +1530,26 @@ class _StreamViewState extends ConsumerState<StreamView> {
                             Container(
                               width: 1,
                               height: 14,
-                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                              color: isDark
+                                  ? AppColors.borderDark
+                                  : AppColors.borderLight,
                             ),
                             const SizedBox(width: 8),
                             GestureDetector(
-                              onTap: () => setState(() => _showPromptNudge = false),
+                              onTap: () =>
+                                  setState(() => _showPromptNudge = false),
                               child: Icon(
                                 Icons.close_rounded,
                                 size: 14,
-                                color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                                color: isDark
+                                    ? AppColors.textDark3
+                                    : AppColors.textLight3,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-
                 ],
               ),
             ),
@@ -1283,7 +1590,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                 ),
               );
             } else {
-              final active = (snapshot.data ?? []).where((p) => p.isActive).toList();
+              final active =
+                  (snapshot.data ?? []).where((p) => p.isActive).toList();
               if (active.isEmpty) {
                 body = Center(
                   child: Padding(
@@ -1291,7 +1599,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     child: Text(
                       'No active PM research prompts right now.',
                       style: GoogleFonts.inter(
-                        color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                        color:
+                            isDark ? AppColors.textDark3 : AppColors.textLight3,
                       ),
                     ),
                   ),
@@ -1320,10 +1629,16 @@ class _StreamViewState extends ConsumerState<StreamView> {
                           child: Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: isDark ? AppColors.surfaceDark2 : AppColors.surfaceLight2,
+                              color: isDark
+                                  ? AppColors.surfaceDark2
+                                  : AppColors.surfaceLight2,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: isSelected ? activeColor : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                                color: isSelected
+                                    ? activeColor
+                                    : (isDark
+                                        ? AppColors.borderDark
+                                        : AppColors.borderLight),
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
@@ -1331,17 +1646,21 @@ class _StreamViewState extends ConsumerState<StreamView> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         p.title,
                                         style: GoogleFonts.inter(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                                          color: isDark
+                                              ? AppColors.textDark
+                                              : AppColors.textLight,
                                         ),
                                       ),
-                                      if (p.description != null && p.description!.isNotEmpty) ...[
+                                      if (p.description != null &&
+                                          p.description!.isNotEmpty) ...[
                                         const SizedBox(height: 4),
                                         Text(
                                           p.description!,
@@ -1349,7 +1668,9 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                           overflow: TextOverflow.ellipsis,
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
-                                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
+                                            color: isDark
+                                                ? AppColors.textDark2
+                                                : AppColors.textLight2,
                                             height: 1.4,
                                           ),
                                         ),
@@ -1359,7 +1680,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                                 ),
                                 if (isSelected) ...[
                                   const SizedBox(width: 12),
-                                  Icon(Icons.check_circle_rounded, color: activeColor, size: 20),
+                                  Icon(Icons.check_circle_rounded,
+                                      color: activeColor, size: 20),
                                 ],
                               ],
                             ),
@@ -1374,19 +1696,23 @@ class _StreamViewState extends ConsumerState<StreamView> {
 
             return Container(
               decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark.withOpacity(0.96) : AppColors.surfaceLight.withOpacity(0.96),
+                color: isDark
+                    ? AppColors.surfaceDark.withOpacity(0.96)
+                    : AppColors.surfaceLight.withOpacity(0.96),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(28),
                   topRight: Radius.circular(28),
                 ),
                 border: Border(
                   top: BorderSide(
-                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    color:
+                        isDark ? AppColors.borderDark : AppColors.borderLight,
                     width: 1.5,
                   ),
                 ),
               ),
-              padding: const EdgeInsets.only(top: 12, left: 20, right: 20, bottom: 28),
+              padding: const EdgeInsets.only(
+                  top: 12, left: 20, right: 20, bottom: 28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1394,7 +1720,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      color:
+                          isDark ? AppColors.borderDark : AppColors.borderLight,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1419,7 +1746,8 @@ class _StreamViewState extends ConsumerState<StreamView> {
                         style: GoogleFonts.inter(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                          color:
+                              isDark ? AppColors.textDark : AppColors.textLight,
                         ),
                       ),
                     ],
@@ -1487,7 +1815,9 @@ class HexagonClipper extends CustomClipper<Path> {
     final r = math.min(size.width, size.height) / 2;
 
     final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3);
-    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+    final vertices = angles
+        .map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a)))
+        .toList();
 
     for (int i = 0; i < 6; i++) {
       final pPrev = vertices[(i - 1 + 6) % 6];
@@ -1540,7 +1870,9 @@ class HexagonPainter extends CustomPainter {
     final r = math.min(size.width, size.height) / 2;
 
     final angles = List.generate(6, (i) => -math.pi / 2 + i * math.pi / 3);
-    final vertices = angles.map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a))).toList();
+    final vertices = angles
+        .map((a) => Offset(cx + r * math.cos(a), cy + r * math.sin(a)))
+        .toList();
 
     final path = Path();
     for (int i = 0; i < 6; i++) {
@@ -1571,8 +1903,9 @@ class HexagonPainter extends CustomPainter {
     // 1. Draw Shadow
     final shadowColor = isActive
         ? const Color(0xFFEDAC33).withOpacity(0.70)
-        : (isDark ? AppColors.sand : AppColors.sandDark).withOpacity(isDark ? 0.30 : 0.20);
-        
+        : (isDark ? AppColors.sand : AppColors.sandDark)
+            .withOpacity(isDark ? 0.30 : 0.20);
+
     canvas.drawPath(
       path,
       Paint()
@@ -1581,8 +1914,8 @@ class HexagonPainter extends CustomPainter {
     );
 
     // 2. Draw Fill
-    final fillColor = isDark 
-        ? AppColors.surfaceDark.withOpacity(0.35) 
+    final fillColor = isDark
+        ? AppColors.surfaceDark.withOpacity(0.35)
         : AppColors.surfaceLight.withOpacity(0.45);
     canvas.drawPath(
       path,
@@ -1592,7 +1925,8 @@ class HexagonPainter extends CustomPainter {
     // 3. Draw Border
     final borderColor = isActive
         ? const Color(0xFFEDAC33).withOpacity(0.8)
-        : (isDark ? AppColors.borderDark : AppColors.borderLight).withOpacity(0.8);
+        : (isDark ? AppColors.borderDark : AppColors.borderLight)
+            .withOpacity(0.8);
 
     canvas.drawPath(
       path,

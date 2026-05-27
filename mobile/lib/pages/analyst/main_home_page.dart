@@ -31,6 +31,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      // Keep prompt strip / footer pinned; keyboard overlays instead of resizing body.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         centerTitle: true,
         leadingWidth: 56,
@@ -49,7 +51,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
         actions: [
           IconButton(
             onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
-            icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            icon: Icon(
+                isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
           ),
           const SizedBox(width: 8),
         ],
@@ -96,7 +99,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
               ),
             ),
           ),
-          padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 36),
+          padding:
+              const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 36),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -110,7 +114,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Header / Brand Title
               Row(
                 children: [
@@ -139,7 +143,7 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 ],
               ),
               const SizedBox(height: 20),
-              
+
               // Options cards
               _buildMenuItem(
                 context: context,
@@ -162,7 +166,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 color: isDark ? AppColors.textDark : AppColors.textLight,
                 onTap: () async {
                   Navigator.pop(context);
-                  final res = await context.push<Map<String, dynamic>>('/drafts');
+                  final res =
+                      await context.push<Map<String, dynamic>>('/drafts');
                   if (res != null) {
                     setState(() {
                       _resumingDraft = res['draft'] as Map<String, dynamic>?;
@@ -171,11 +176,14 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // PM Features injected into the menu
-              if (ref.read(authProvider).profile?.role == 'pm' || ref.read(authProvider).profile?.role == 'manager') ...[
+              if (ref.read(authProvider).profile?.role == 'pm' ||
+                  ref.read(authProvider).profile?.role == 'manager') ...[
                 const SizedBox(height: 12),
-                Divider(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                Divider(
+                    color:
+                        isDark ? AppColors.borderDark : AppColors.borderLight),
                 const SizedBox(height: 12),
                 _buildMenuItem(
                   context: context,
@@ -202,17 +210,21 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 ),
                 const SizedBox(height: 12),
               ],
-              
+
               _buildMenuItem(
                 context: context,
                 icon: Icons.lightbulb_outline_rounded,
                 title: 'Active Prompts',
                 subtitle: 'Select writing & thinking prompts',
-                color: _selectedPrompt != null ? activeColor : (isDark ? AppColors.textDark : AppColors.textLight),
+                color: _selectedPrompt != null
+                    ? activeColor
+                    : (isDark ? AppColors.textDark : AppColors.textLight),
                 iconColor: _selectedPrompt != null ? activeColor : null,
                 onTap: () async {
                   Navigator.pop(context);
-                  final res = await context.push<Map<String, dynamic>>('/prompts', extra: {'selectedPrompt': _selectedPrompt});
+                  final res = await context.push<Map<String, dynamic>>(
+                      '/prompts',
+                      extra: {'selectedPrompt': _selectedPrompt});
                   if (res != null) {
                     setState(() {
                       _selectedPrompt = res['prompt'] as Prompt?;
@@ -220,11 +232,11 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                   }
                 },
               ),
-              
+
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
-              
+
               _buildMenuItem(
                 context: context,
                 icon: Icons.logout_rounded,
@@ -284,7 +296,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                 ),
                 child: Icon(
                   icon,
-                  color: iconColor ?? (isDark ? AppColors.textDark2 : AppColors.textLight2),
+                  color: iconColor ??
+                      (isDark ? AppColors.textDark2 : AppColors.textLight2),
                   size: 20,
                 ),
               ),
@@ -306,7 +319,8 @@ class _MainHomePageState extends ConsumerState<MainHomePage> {
                       subtitle,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: isDark ? AppColors.textDark3 : AppColors.textLight3,
+                        color:
+                            isDark ? AppColors.textDark3 : AppColors.textLight3,
                       ),
                     ),
                   ],

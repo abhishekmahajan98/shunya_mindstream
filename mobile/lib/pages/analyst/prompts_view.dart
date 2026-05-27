@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../core/api/prompts_api.dart';
 import '../../core/models/prompt.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/hive_feedback.dart';
 
-import 'package:go_router/go_router.dart';
 
 class PromptsView extends StatefulWidget {
   final Prompt? selectedPrompt;
@@ -64,21 +66,9 @@ class _PromptsViewState extends State<PromptsView> {
 
     Widget content;
     if (_loading) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const HiveLoadingIndicator();
     } else if (_error != null) {
-      content = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_error!, style: GoogleFonts.inter(color: AppColors.error), textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: _fetch, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+      content = HiveErrorPanel(message: _error!, onRetry: _fetch);
     } else {
       content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -124,21 +114,31 @@ class _PromptsViewState extends State<PromptsView> {
                               color: surfaceColor,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: isSelected ? activeColor : border,
+                                color: isSelected ? activeColor.withValues(alpha: 0.9) : border,
                                 width: isSelected ? 1.5 : 1,
                               ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: activeColor.withValues(alpha: 0.15),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 4),
-                                      )
-                                    ]
-                                  : null,
                             ),
                             child: Row(
                               children: [
+                                if (isSelected) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 10),
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: activeColor,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: activeColor.withValues(alpha: 0.35),
+                                            blurRadius: 6,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,10 +167,6 @@ class _PromptsViewState extends State<PromptsView> {
                                     ],
                                   ),
                                 ),
-                                if (isSelected) ...[
-                                  const SizedBox(width: 12),
-                                  Icon(Icons.check_circle_outline, color: activeColor, size: 22),
-                                ],
                               ],
                             ),
                           ),

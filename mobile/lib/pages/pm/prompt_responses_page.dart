@@ -6,6 +6,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../core/api/prompts_api.dart';
 import '../../core/models/prompt_responses_result.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/hive_feedback.dart';
 
 class PromptResponsesPage extends StatefulWidget {
   final String promptId;
@@ -57,7 +58,7 @@ class _PromptResponsesPageState extends State<PromptResponsesPage> {
 
     if (_loading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: HiveLoadingIndicator(),
       );
     }
 
@@ -69,19 +70,7 @@ class _PromptResponsesPageState extends State<PromptResponsesPage> {
             icon: const Icon(Icons.arrow_back),
           ),
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(_error!, style: GoogleFonts.inter(color: AppColors.error), textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                OutlinedButton(onPressed: _fetch, child: const Text('Retry')),
-              ],
-            ),
-          ),
-        ),
+        body: HiveErrorPanel(message: _error!, onRetry: _fetch),
       );
     }
 

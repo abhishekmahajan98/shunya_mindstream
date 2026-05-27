@@ -6,6 +6,7 @@ import '../../core/api/recordings_api.dart';
 import '../../core/models/recording.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/archive_recording_card.dart';
+import '../../widgets/hive_feedback.dart';
 import '../../core/services/sync_service.dart';
 
 class ArchiveView extends StatefulWidget {
@@ -117,21 +118,9 @@ class _ArchiveViewState extends State<ArchiveView> {
 
     Widget content;
     if (_loading) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const HiveLoadingIndicator();
     } else if (_error != null) {
-      content = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_error!, style: GoogleFonts.inter(color: AppColors.error), textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: _fetch, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+      content = HiveErrorPanel(message: _error!, onRetry: _fetch);
     } else {
       final filtered = _getFilteredRecordings();
       content = Padding(
@@ -561,6 +550,8 @@ class _HeatmapGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeColor = isDark ? AppColors.teal : AppColors.tealDark;
+    // High-contrast ring so selection stays visible on both empty tiles and saturated gold.
+    final selectionRing = isDark ? Colors.white : AppColors.textLight;
 
     // Process counts
     final counts = <String, int>{};
@@ -641,9 +632,23 @@ class _HeatmapGrid extends StatelessWidget {
               color: squareColor,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
-                width: 1.5,
+                color: isSelected ? selectionRing : Colors.transparent,
+                width: isSelected ? 2.5 : 0,
               ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: selectionRing.withValues(alpha: 0.55),
+                        blurRadius: 5,
+                        spreadRadius: 0.5,
+                      ),
+                      BoxShadow(
+                        color: activeColor.withValues(alpha: 0.45),
+                        blurRadius: 3,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                  : null,
             ),
           ),
         ),

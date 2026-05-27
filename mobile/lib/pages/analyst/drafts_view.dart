@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../core/services/sync_service.dart';
 import '../../core/theme/app_colors.dart';
-
-import 'package:go_router/go_router.dart';
+import '../../widgets/hive_feedback.dart';
 
 class DraftsView extends StatefulWidget {
   const DraftsView({super.key});
@@ -45,7 +46,7 @@ class _DraftsViewState extends State<DraftsView> {
 
     Widget content;
     if (_loading) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const HiveLoadingIndicator();
     } else if (_drafts.isEmpty) {
       content = Center(
         child: Padding(
@@ -54,17 +55,20 @@ class _DraftsViewState extends State<DraftsView> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 80,
-                height: 80,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   color: isDark
-                      ? AppColors.surfaceDark2.withOpacity(0.5)
-                      : AppColors.surfaceLight2.withOpacity(0.5),
+                      ? AppColors.surfaceDark2.withValues(alpha: 0.5)
+                      : AppColors.surfaceLight2.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.teal.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: Icon(
                   Icons.edit_note_rounded,
-                  size: 40,
+                  size: 32,
                   color: isDark ? AppColors.textDark3 : AppColors.textLight3,
                 ),
               ),
@@ -93,14 +97,14 @@ class _DraftsViewState extends State<DraftsView> {
       );
     } else {
       content = ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       itemCount: _drafts.length,
       itemBuilder: (context, index) {
         final d = _drafts[index];
         final border = isDark ? AppColors.borderDark : AppColors.borderLight;
         final surface = isDark
-            ? AppColors.surfaceDark.withOpacity(0.65)
-            : AppColors.surfaceLight.withOpacity(0.80);
+            ? AppColors.surfaceDark.withValues(alpha: 0.65)
+            : AppColors.surfaceLight.withValues(alpha: 0.80);
 
         final localTsStr = d['local_timestamp'] as String? ?? '';
         final dt = DateTime.tryParse(localTsStr)?.toLocal();
@@ -110,42 +114,35 @@ class _DraftsViewState extends State<DraftsView> {
         final promptTitle = d['prompt_title'] as String?;
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: border),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            timeStr,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? AppColors.textDark : AppColors.textLight,
-                            ),
+                      Expanded(
+                        child: Text(
+                          [dateStr, timeStr].where((s) => s.isNotEmpty).join(' · '),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                            color: isDark ? AppColors.textDark2 : AppColors.textLight2,
                           ),
-                          Text(
-                            dateStr,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: isDark ? AppColors.textDark2 : AppColors.textLight2,
-                            ),
-                          ),
-                        ],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(
@@ -165,7 +162,7 @@ class _DraftsViewState extends State<DraftsView> {
                     margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.teal.withOpacity(0.08),
+                      color: AppColors.teal.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -216,23 +213,21 @@ class _DraftsViewState extends State<DraftsView> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      ElevatedButton.icon(
+                      OutlinedButton.icon(
                         onPressed: () => context.pop({'draft': d, 'index': index}),
-                        icon: const Icon(Icons.edit_note_rounded, size: 16),
+                        icon: Icon(Icons.edit_note_rounded, size: 16, color: isDark ? AppColors.teal : AppColors.tealDark),
                         label: Text(
-                          'Resume Draft',
+                          'Resume',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.teal : AppColors.tealDark,
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
+                        style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          backgroundColor: isDark ? AppColors.bgDark : AppColors.bgLight,
-                          foregroundColor: isDark ? AppColors.teal : AppColors.tealDark,
-                          elevation: 0,
                           side: BorderSide(
-                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                            color: (isDark ? AppColors.teal : AppColors.tealDark).withValues(alpha: 0.65),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),

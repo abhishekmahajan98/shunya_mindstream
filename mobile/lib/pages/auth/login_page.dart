@@ -43,14 +43,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    const teal = Color(0xFFEDAC33); // HIVE Gold Color
+    final hiveGold = AppColors.teal;
 
     return Scaffold(
       backgroundColor: bg,
       body: Stack(
         children: [
           // Ambient blobs
-          _Blob(top: -120, left: -80, color: teal.withValues(alpha: 0.07)),
+          _Blob(top: -120, left: -80, color: hiveGold.withValues(alpha: 0.07)),
           _Blob(bottom: -100, right: -60, color: AppColors.violet.withValues(alpha: 0.05)),
 
           SafeArea(
@@ -80,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFFEDAC33).withValues(alpha: 0.35),
+                                        color: AppColors.teal.withValues(alpha: 0.35),
                                         blurRadius: 16,
                                         spreadRadius: 4,
                                       ),
@@ -96,9 +96,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   ),
                                 ),
                                 // Glowing golden hive (honeycomb) icon
-                                const Icon(
+                                Icon(
                                   Icons.hive,
-                                  color: Color(0xFFEDAC33),
+                                  color: AppColors.teal,
                                   size: 28,
                                 ),
                               ],
@@ -237,7 +237,12 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border(
+          left: BorderSide(color: AppColors.teal.withValues(alpha: 0.85), width: 3),
+          top: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
+          right: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
+          bottom: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
+        ),
       ),
       child: Text(
         message,
@@ -313,7 +318,7 @@ class _LoginHexagonPainter extends CustomPainter {
     path.close();
 
     // 1. Draw Gold Shadow
-    final shadowColor = const Color(0xFFEDAC33).withValues(alpha: 0.35);
+    final shadowColor = AppColors.teal.withValues(alpha: 0.35);
     canvas.drawPath(
       path,
       Paint()
@@ -331,7 +336,7 @@ class _LoginHexagonPainter extends CustomPainter {
     );
 
     // 3. Draw Gold Border
-    final borderColor = const Color(0xFFEDAC33).withValues(alpha: 0.8);
+    final borderColor = AppColors.teal.withValues(alpha: 0.8);
     canvas.drawPath(
       path,
       Paint()

@@ -6,6 +6,7 @@ import '../../core/api/prompts_api.dart';
 import '../../core/api/api_client.dart';
 import '../../core/models/prompt.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/hive_feedback.dart';
 
 class PMPromptsView extends StatefulWidget {
   const PMPromptsView({super.key});
@@ -78,7 +79,7 @@ class _PMPromptsViewState extends State<PMPromptsView> {
     Widget content = RefreshIndicator(
       onRefresh: _fetchPrompts,
       child: _loadingPrompts
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: HiveLoadingIndicator())
           : CustomScrollView(
               slivers: [
                 SliverPadding(
@@ -430,10 +431,13 @@ class _NewPromptBottomSheetState extends State<_NewPromptBottomSheet> {
                 ElevatedButton(
                   onPressed: _loading ? null : _submit,
                   child: _loading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
                         )
                       : const Text('Create Prompt'),
                 ),

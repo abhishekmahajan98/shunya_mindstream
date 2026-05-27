@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../core/models/recording.dart';
 import '../core/theme/app_colors.dart';
-import 'stat_chip.dart';
 
 class ArchiveRecordingCard extends StatefulWidget {
   final Recording recording;
@@ -46,40 +45,45 @@ class _ArchiveRecordingCardState extends State<ArchiveRecordingCard> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(timeStr,
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.textDark : AppColors.textLight)),
-                        Text(dateStr,
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: isDark ? AppColors.textDark2 : AppColors.textLight2)),
-                      ],
+                    child: Text(
+                      [dateStr, timeStr].where((s) => s.isNotEmpty).join(' · '),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                        color: isDark
+                            ? AppColors.textDark2
+                            : AppColors.textLight2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (r.id.startsWith('pending_'))
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: AppColors.teal.withValues(alpha: isDark ? 0.14 : 0.10),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.withOpacity(0.4)),
+                        border: Border.all(
+                          color: AppColors.teal.withValues(alpha: 0.45),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.cloud_queue_rounded, size: 12, color: Colors.blue),
+                          Icon(
+                            Icons.cloud_queue_rounded,
+                            size: 12,
+                            color: isDark ? AppColors.teal : AppColors.tealDark,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            'Waiting for internet',
+                            'Sync pending',
                             style: GoogleFonts.inter(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
-                              color: Colors.blue,
+                              color: isDark ? AppColors.teal : AppColors.tealDark,
                             ),
                           ),
                         ],
